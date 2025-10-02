@@ -21,7 +21,14 @@
       "Bash(sqlite3:*)",
       "Bash(__NEW_LINE__ sqlite3 /Users/songjunha/running/running.db \"ALTER TABLE activities ADD COLUMN average_cadence REAL;\")",
       "Bash(git init:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nInitial commit: Running Challenge App\n\n- Strava OAuth 연동 완료\n- 사용자별 러닝 기록 비교 대시보드\n- 심박수, 케이던스 데이터 추가\n- DaisyUI Pastel 테마 적용\n- 모바일 최적화 UI\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(gh repo create:*)",
+      "Bash(git remote add:*)",
+      "Bash(git push:*)",
+      "Bash(git remote set-url:*)",
+      "Bash(git commit:*)",
+      "Bash(xargs kill:*)"
     ],
     "deny": [],
     "ask": []
