@@ -70,6 +70,27 @@ async function initDatabase() {
       )
     `);
 
+    // 기존 테이블에 컬럼 추가 (마이그레이션)
+    try {
+      await runQuery(`ALTER TABLE activities ADD COLUMN average_heartrate REAL`);
+      console.log('✅ average_heartrate 컬럼 추가 완료');
+    } catch (error) {
+      // 이미 존재하면 무시
+      if (!error.message.includes('duplicate column name')) {
+        console.error('❌ average_heartrate 컬럼 추가 실패:', error.message);
+      }
+    }
+
+    try {
+      await runQuery(`ALTER TABLE activities ADD COLUMN average_cadence REAL`);
+      console.log('✅ average_cadence 컬럼 추가 완료');
+    } catch (error) {
+      // 이미 존재하면 무시
+      if (!error.message.includes('duplicate column name')) {
+        console.error('❌ average_cadence 컬럼 추가 실패:', error.message);
+      }
+    }
+
     console.log('✅ 데이터베이스 초기화 완료');
   } catch (error) {
     console.error('❌ 데이터베이스 초기화 실패:', error);
