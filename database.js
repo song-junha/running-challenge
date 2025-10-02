@@ -63,6 +63,8 @@ async function initDatabase() {
         start_date DATETIME,
         average_speed REAL,
         max_speed REAL,
+        average_heartrate REAL,
+        average_cadence REAL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users (id)
       )
