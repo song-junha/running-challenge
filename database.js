@@ -1,8 +1,16 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
+const fs = require('fs');
 
-// 데이터베이스 파일 경로
-const dbPath = path.join(__dirname, 'running.db');
+// 데이터베이스 파일 경로 (환경변수 우선, 없으면 로컬 경로)
+const dbPath = process.env.DB_PATH || path.join(__dirname, 'running.db');
+
+// DB 디렉토리가 없으면 생성
+const dbDir = path.dirname(dbPath);
+if (!fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true });
+}
+
 const db = new sqlite3.Database(dbPath);
 
 // Promise 래퍼 함수들
