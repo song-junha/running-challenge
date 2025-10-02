@@ -106,6 +106,14 @@ const userQueries = {
       'UPDATE users SET access_token = ?, refresh_token = ? WHERE id = ?',
       [access_token, refresh_token, id]
     );
+  },
+
+  // 사용자 삭제 (활동도 함께 삭제)
+  deleteUser: async (id) => {
+    // 먼저 해당 사용자의 활동 삭제
+    await runQuery('DELETE FROM activities WHERE user_id = ?', [id]);
+    // 그 다음 사용자 삭제
+    return await runQuery('DELETE FROM users WHERE id = ?', [id]);
   }
 };
 
@@ -165,6 +173,42 @@ const activityQueries = {
       GROUP BY u.id
       ORDER BY total_distance DESC
     `, [since]);
+  },
+
+  // 개인 기록 (5K, 10K, Half, Full)
+  getPersonalRecords: async (userId) => {
+    const distances = [
+      { name: '5K', min: 4500, max: 5500 },
+      { name: '10K', min: 9500, max: 10500 },
+      { name: 'Half', min: 20500, max: 22000 },
+      { name: 'Full', min: 41500, max: 43000 }
+    ];
+
+    const records = {};
+
+    for (const dist of distances) {
+      const record = await getQuery(`
+        SELECT
+          name,
+          distance,
+          moving_time,
+          start_date,
+          average_speed,
+          average_heartrate,
+          average_cadence
+        FROM activities
+        WHERE user_id = ?
+          AND distance >= ?
+          AND distance <= ?
+          AND type = 'Run'
+        ORDER BY moving_time ASC
+        LIMIT 1
+      `, [userId, dist.min, dist.max]);
+
+      records[dist.name] = record || null;
+    }
+
+    return records;
   }
 };
 

@@ -52,23 +52,6 @@ async function loadStats() {
       `;
       return;
     }
-    
-    // 상위 3위 - 1줄로 컴팩트하게
-    const topThree = stats.slice(0, 3).map((user, index) => {
-      const distance = (user.total_distance / 1000).toFixed(1);
-      const medals = ['🥇', '🥈', '🥉'];
-      const colors = ['primary', 'secondary', 'accent'];
-
-      return `
-        <div class="flex items-center gap-2 bg-base-100 px-3 py-2 rounded-lg shadow border border-base-300 flex-1">
-          <div class="text-2xl">${medals[index]}</div>
-          <div class="flex-1 min-w-0">
-            <div class="text-xs text-base-content/70 truncate">${user.name || '사용자'}</div>
-            <div class="text-lg font-bold text-${colors[index]}">${distance}<span class="text-xs font-normal">km</span></div>
-          </div>
-        </div>
-      `;
-    }).join('');
 
     // 전체 사용자 리스트 (1 row per user)
     const allUsersList = stats.map((user, index) => {
@@ -77,10 +60,10 @@ async function loadStats() {
       const avgPace = calculatePace(user.total_distance, user.total_time);
       const rankBadge = index < 3 ? ['🥇', '🥈', '🥉'][index] : `${index + 1}위`;
       const avgHR = user.avg_heartrate ? Math.round(user.avg_heartrate) : '-';
-      const avgCadence = user.avg_cadence ? Math.round(user.avg_cadence) : '-';
+      const avgCadence = user.avg_cadence ? Math.round(user.avg_cadence * 2) : '-';
 
       return `
-        <tr class="hover">
+        <tr class="hover cursor-pointer" onclick="showPersonalRecords(${user.id}, '${user.name || '사용자'}')">
           <td class="font-bold">${rankBadge}</td>
           <td class="font-semibold">${user.name || '사용자'}</td>
           <td><span class="badge badge-primary badge-lg">${distance} km</span></td>
@@ -94,11 +77,6 @@ async function loadStats() {
     }).join('');
 
     statsContainer.innerHTML = `
-      <!-- Top 3 Cards - 1줄 가로 배치 -->
-      <div class="col-span-full flex gap-2 mb-4">
-        ${topThree}
-      </div>
-
       <!-- All Users Table -->
       <div class="col-span-full">
         <div class="card bg-base-100 shadow-xl">
@@ -229,16 +207,22 @@ async function loadActivities() {
 }
 
 // 시간 포맷팅 (초 -> 시:분:초)
-function formatTime(seconds) {
+function formatTime(seconds, includeSeconds = false) {
   if (!seconds) return '0분';
-  
+
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   const secs = seconds % 60;
-  
+
   if (hours > 0) {
+    if (includeSeconds) {
+      return `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
     return `${hours}시간 ${minutes}분`;
   } else if (minutes > 0) {
+    if (includeSeconds) {
+      return `${minutes}:${String(secs).padStart(2, '0')}`;
+    }
     return `${minutes}분`;
   } else {
     return `${secs}초`;
@@ -250,9 +234,14 @@ function calculatePace(distance, time) {
   if (!distance || !time) return '-';
 
   const distanceKm = distance / 1000;
-  const paceMinutes = time / 60 / distanceKm;
-  const minutes = Math.floor(paceMinutes);
-  const seconds = Math.round((paceMinutes - minutes) * 60);
+  const totalSeconds = time / distanceKm;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = Math.round(totalSeconds % 60);
+
+  // 60초가 되면 분으로 올림
+  if (seconds === 60) {
+    return `${minutes + 1}'00"/km`;
+  }
 
   return `${minutes}'${seconds.toString().padStart(2, '0')}"/km`;
 }
@@ -370,4 +359,92 @@ function showMessage(message, type) {
     toast.classList.add('opacity-0', 'transition-opacity', 'duration-300');
     setTimeout(() => toast.remove(), 300);
   }, 3000);
+}
+
+// 개인 기록 팝업 표시
+async function showPersonalRecords(userId, userName) {
+  const modal = document.getElementById('recordsModal');
+  const modalUserName = document.getElementById('modalUserName');
+  const recordsContent = document.getElementById('recordsContent');
+
+  modalUserName.textContent = `${userName} - 개인 기록`;
+  recordsContent.innerHTML = '<div class="flex justify-center py-8"><span class="loading loading-spinner loading-lg text-primary"></span></div>';
+
+  modal.showModal();
+
+  try {
+    const response = await fetch(`/api/users/${userId}/records`);
+    const records = await response.json();
+
+    const distances = ['5K', '10K', 'Half', 'Full'];
+    const distanceLabels = {
+      '5K': '5k',
+      '10K': '10k',
+      'Half': 'Half',
+      'Full': 'Full'
+    };
+
+    recordsContent.innerHTML = `
+      <div class="overflow-x-auto">
+        <table class="table table-sm">
+          <thead>
+            <tr>
+              <th>거리</th>
+              <th>기록</th>
+              <th>페이스</th>
+              <th>심박수</th>
+              <th>케이던스</th>
+              <th>날짜</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${distances.map(dist => {
+              const record = records[dist];
+
+              if (!record) {
+                return `
+                  <tr>
+                    <td class="font-semibold">${distanceLabels[dist]}</td>
+                    <td colspan="5" class="text-base-content/60">기록 없음</td>
+                  </tr>
+                `;
+              }
+
+              const time = formatTime(record.moving_time, true);
+              const pace = calculatePace(record.distance, record.moving_time);
+              const date = new Date(record.start_date).toLocaleDateString('ko-KR', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+              });
+              const hr = record.average_heartrate ? Math.round(record.average_heartrate) : '-';
+              const cadence = record.average_cadence ? Math.round(record.average_cadence * 2) : '-';
+
+              return `
+                <tr class="hover">
+                  <td class="font-semibold text-sm">${distanceLabels[dist]}</td>
+                  <td><span class="badge badge-primary">${time}</span></td>
+                  <td class="text-sm">${pace}</td>
+                  <td class="text-sm">${hr} bpm</td>
+                  <td class="text-sm">${cadence} spm</td>
+                  <td class="text-xs">${date}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+
+  } catch (error) {
+    console.error('개인 기록 로드 실패:', error);
+    recordsContent.innerHTML = `
+      <div class="alert alert-error shadow-lg">
+        <div>
+          <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current flex-shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          <span>개인 기록을 불러올 수 없습니다</span>
+        </div>
+      </div>
+    `;
+  }
 }

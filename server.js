@@ -37,6 +37,17 @@ app.post('/api/users', async (req, res) => {
   }
 });
 
+// 사용자 삭제
+app.delete('/api/users/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await userQueries.deleteUser(id);
+    res.json({ success: true, message: '사용자가 삭제되었습니다' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // 최근 활동 조회
 app.get('/api/activities/recent', async (req, res) => {
   try {
@@ -88,9 +99,20 @@ app.get('/api/stats', async (req, res) => {
     const days = parseInt(req.query.days) || 7;
     const since = new Date();
     since.setDate(since.getDate() - days);
-    
+
     const stats = await activityQueries.getStatsByPeriod(since.toISOString());
     res.json(stats);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 개인 기록 (5K, 10K, Half, Full)
+app.get('/api/users/:userId/records', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const records = await activityQueries.getPersonalRecords(userId);
+    res.json(records);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -99,10 +121,10 @@ app.get('/api/stats', async (req, res) => {
 // ============= Strava OAuth =============
 
 // Strava API 헬퍼 함수들
-async function fetchStravaActivities(accessToken, after = null) {
+async function fetchStravaActivities(accessToken, after = null, perPage = 200) {
   const url = 'https://www.strava.com/api/v3/athlete/activities';
   const params = {
-    per_page: 30
+    per_page: perPage
   };
 
   if (after) {
@@ -117,6 +139,47 @@ async function fetchStravaActivities(accessToken, after = null) {
   return response.data;
 }
 
+async function fetchAllActivities(accessToken, after) {
+  let allActivities = [];
+  let page = 1;
+  let hasMore = true;
+
+  while (hasMore) {
+    const url = 'https://www.strava.com/api/v3/athlete/activities';
+    const params = {
+      per_page: 200,
+      page: page
+    };
+
+    if (after) {
+      params.after = after;
+    }
+
+    const response = await axios.get(url, {
+      headers: { 'Authorization': `Bearer ${accessToken}` },
+      params: params
+    });
+
+    const activities = response.data;
+
+    if (activities.length === 0) {
+      hasMore = false;
+    } else {
+      allActivities = allActivities.concat(activities);
+      page++;
+
+      // Rate limit 방지: 200개씩 가져온 후 잠시 대기
+      if (activities.length === 200) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } else {
+        hasMore = false;
+      }
+    }
+  }
+
+  return allActivities;
+}
+
 async function syncUserActivities(userId) {
   const user = await userQueries.getUser(userId);
 
@@ -124,9 +187,23 @@ async function syncUserActivities(userId) {
     throw new Error('사용자 토큰을 찾을 수 없습니다');
   }
 
-  // 최근 30일 활동 가져오기
-  const thirtyDaysAgo = Math.floor(Date.now() / 1000) - (30 * 24 * 60 * 60);
-  const activities = await fetchStravaActivities(user.access_token, thirtyDaysAgo);
+  // 기존 활동 개수 확인
+  const existingActivities = await activityQueries.getUserActivities(userId);
+  const isFirstSync = existingActivities.length === 0;
+
+  let activities;
+
+  if (isFirstSync) {
+    // 첫 동기화: 5년 전부터 모든 데이터 (페이징 처리)
+    console.log(`첫 동기화 시작 - 사용자 ${userId}: 5년 전부터 전체 데이터 가져오기`);
+    const fiveYearsAgo = Math.floor(Date.now() / 1000) - (5 * 365 * 24 * 60 * 60);
+    activities = await fetchAllActivities(user.access_token, fiveYearsAgo);
+  } else {
+    // 이후 동기화: 최근 1년 (페이징 처리)
+    console.log(`정기 동기화 시작 - 사용자 ${userId}: 최근 1년 데이터 가져오기`);
+    const oneYearAgo = Math.floor(Date.now() / 1000) - (365 * 24 * 60 * 60);
+    activities = await fetchAllActivities(user.access_token, oneYearAgo);
+  }
 
   let syncedCount = 0;
 
@@ -152,7 +229,9 @@ async function syncUserActivities(userId) {
     }
   }
 
-  return { syncedCount, totalActivities: activities.length };
+  console.log(`동기화 완료 - 사용자 ${userId}: ${syncedCount}개 활동 저장 (전체 ${activities.length}개 중)`);
+
+  return { syncedCount, totalActivities: activities.length, isFirstSync };
 }
 
 app.get('/auth/strava', (req, res) => {
