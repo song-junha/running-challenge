@@ -83,6 +83,15 @@ curl -X POST http://localhost:3000/api/users \
 3. 친구 추가/관리 기능
 4. 가민(Garmin) 연동 추가
 
+
+앞으로 테마 색상을 바꾸려면:
+1. tailwind.config.js에서 색상 수정
+2. npm run build:css 실행
+3. 브라우저 새로고침
+
+개발 중에는 npm run watch:css를 실행해두면 파일이 바뀔 때마다 자동으로 빌드됩니다!
+
 ---
+
 
 문의: songjunha@example.com

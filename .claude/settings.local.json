@@ -28,7 +28,9 @@
       "Bash(git push:*)",
       "Bash(git remote set-url:*)",
       "Bash(git commit:*)",
-      "Bash(xargs kill:*)"
+      "Bash(xargs kill:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run build:css:*)"
     ],
     "deny": [],
     "ask": []

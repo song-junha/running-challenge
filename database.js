@@ -175,6 +175,26 @@ const activityQueries = {
     `, [since]);
   },
 
+  // 날짜 범위별 통계
+  getStatsByDateRange: async (start, end) => {
+    return await allQuery(`
+      SELECT
+        u.id,
+        u.name,
+        COUNT(a.id) as activity_count,
+        SUM(a.distance) as total_distance,
+        SUM(a.moving_time) as total_time,
+        SUM(a.total_elevation_gain) as total_elevation,
+        AVG(a.average_heartrate) as avg_heartrate,
+        AVG(a.average_cadence) as avg_cadence
+      FROM users u
+      LEFT JOIN activities a ON u.id = a.user_id
+      WHERE a.start_date >= ? AND a.start_date <= ?
+      GROUP BY u.id
+      ORDER BY total_distance DESC
+    `, [start, end]);
+  },
+
   // 개인 기록 (5K, 10K, Half, Full)
   getPersonalRecords: async (userId) => {
     const distances = [

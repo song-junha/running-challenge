@@ -93,14 +93,13 @@ app.post('/api/activities', async (req, res) => {
   }
 });
 
-// 기간별 통계 (예: 최근 7일, 30일)
+// 기간별 통계
 app.get('/api/stats', async (req, res) => {
   try {
-    const days = parseInt(req.query.days) || 7;
-    const since = new Date();
-    since.setDate(since.getDate() - days);
+    const start = req.query.start;
+    const end = req.query.end || new Date().toISOString();
 
-    const stats = await activityQueries.getStatsByPeriod(since.toISOString());
+    const stats = await activityQueries.getStatsByDateRange(start, end);
     res.json(stats);
   } catch (error) {
     res.status(500).json({ error: error.message });

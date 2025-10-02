@@ -1,5 +1,5 @@
 // 현재 선택된 기간
-let currentPeriod = 7;
+let currentPeriod = 'thisMonth';
 let currentUserId = null;
 
 // 페이지 로드 시 실행
@@ -21,10 +21,43 @@ function setupPeriodSelector() {
       button.classList.add('btn-active');
 
       // 기간 업데이트 및 데이터 다시 로드
-      currentPeriod = parseInt(button.dataset.days);
+      currentPeriod = button.dataset.period;
       loadStats();
     });
   });
+}
+
+// 기간별 날짜 계산
+function getDateRangeForPeriod(period) {
+  const now = new Date();
+  let startDate, endDate;
+
+  switch(period) {
+    case 'thisMonth':
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      endDate = now;
+      break;
+    case 'lastMonth':
+      startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      endDate = new Date(now.getFullYear(), now.getMonth(), 0);
+      break;
+    case 'thisYear':
+      startDate = new Date(now.getFullYear(), 0, 1);
+      endDate = now;
+      break;
+    case 'lastYear':
+      startDate = new Date(now.getFullYear() - 1, 0, 1);
+      endDate = new Date(now.getFullYear() - 1, 11, 31);
+      break;
+    default:
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      endDate = now;
+  }
+
+  return {
+    start: startDate.toISOString(),
+    end: endDate.toISOString()
+  };
 }
 
 // 통계 데이터 로드
@@ -33,7 +66,8 @@ async function loadStats() {
   statsContainer.innerHTML = '<div class="col-span-full flex justify-center py-12"><span class="loading loading-spinner loading-lg text-primary"></span></div>';
 
   try {
-    const response = await fetch(`/api/stats?days=${currentPeriod}`);
+    const dateRange = getDateRangeForPeriod(currentPeriod);
+    const response = await fetch(`/api/stats?start=${dateRange.start}&end=${dateRange.end}`);
     const stats = await response.json();
 
     if (stats.length === 0) {
