@@ -101,11 +101,11 @@ async function loadStats() {
           <td class="font-bold">${rankBadge}</td>
           <td class="font-semibold">${user.name || '사용자'}</td>
           <td><span class="badge badge-primary badge-lg">${distance} km</span></td>
-          <td>${time}</td>
-          <td>${user.activity_count}회</td>
-          <td>${avgPace}</td>
-          <td>${avgHR} bpm</td>
-          <td>${avgCadence} spm</td>
+          <td class="hidden md:table-cell">${time}</td>
+          <td class="hidden sm:table-cell">${user.activity_count}회</td>
+          <td class="hidden lg:table-cell">${avgPace}</td>
+          <td class="hidden lg:table-cell">${avgHR} bpm</td>
+          <td class="hidden lg:table-cell">${avgCadence} spm</td>
         </tr>
       `;
     }).join('');
@@ -123,11 +123,11 @@ async function loadStats() {
                     <th>순위</th>
                     <th>이름</th>
                     <th>총 거리</th>
-                    <th>총 시간</th>
-                    <th>활동 수</th>
-                    <th>평균 페이스</th>
-                    <th>평균 심박수</th>
-                    <th>평균 케이던스</th>
+                    <th class="hidden md:table-cell">총 시간</th>
+                    <th class="hidden sm:table-cell">활동 수</th>
+                    <th class="hidden lg:table-cell">평균 페이스</th>
+                    <th class="hidden lg:table-cell">평균 심박수</th>
+                    <th class="hidden lg:table-cell">평균 케이던스</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -426,8 +426,8 @@ async function showPersonalRecords(userId, userName) {
               <th>거리</th>
               <th>기록</th>
               <th>페이스</th>
-              <th>심박수</th>
-              <th>케이던스</th>
+              <th class="hidden md:table-cell">심박수</th>
+              <th class="hidden md:table-cell">케이던스</th>
               <th>날짜</th>
             </tr>
           </thead>
@@ -459,8 +459,8 @@ async function showPersonalRecords(userId, userName) {
                   <td class="font-semibold text-sm">${distanceLabels[dist]}</td>
                   <td><span class="badge badge-primary">${time}</span></td>
                   <td class="text-sm">${pace}</td>
-                  <td class="text-sm">${hr} bpm</td>
-                  <td class="text-sm">${cadence} spm</td>
+                  <td class="hidden md:table-cell text-sm">${hr} bpm</td>
+                  <td class="hidden md:table-cell text-sm">${cadence} spm</td>
                   <td class="text-xs">${date}</td>
                 </tr>
               `;
