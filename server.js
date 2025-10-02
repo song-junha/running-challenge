@@ -131,8 +131,8 @@ async function syncUserActivities(userId) {
   let syncedCount = 0;
 
   for (const activity of activities) {
-    // Run 타입만 저장
-    if (activity.type === 'Run') {
+    // Run 타입이면서 공개 활동만 저장
+    if (activity.type === 'Run' && activity.private === false) {
       await activityQueries.addActivity(
         userId,
         activity.id.toString(),
