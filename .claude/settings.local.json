@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:developers.strava.com)",
+      "Bash(env)",
+      "Bash(lsof:*)",
+      "Bash(kill:*)",
+      "Bash(node server.js)",
+      "Bash(awk:*)",
+      "Bash(brew install:*)",
+      "Bash(ngrok:*)",
+      "Bash(curl:*)",
+      "Bash(python3 -c \"import sys, json; data = json.load(sys.stdin); print([t[''''public_url''''] for t in data.get(''''tunnels'''', []) if ''''https'''' in t.get(''''public_url'''', '''''''')][0] if data.get(''''tunnels'''') else ''''Starting...'''')\")",
+      "Bash(/opt/homebrew/bin/ngrok http 3000)",
+      "Bash(python3 -c \"import sys, json; data = json.load(sys.stdin); tunnels = data.get(''''tunnels'''', []); print(tunnels[0][''''public_url''''] if tunnels else ''''No tunnel'''')\")",
+      "Read(//opt/homebrew/**)",
+      "Bash(python3:*)",
+      "Bash(brew reinstall:*)",
+      "Read(//private/tmp/**)",
+      "Bash(__NEW_LINE__ curl -X POST http://localhost:3000/api/users )",
+      "Bash(sqlite3:*)",
+      "Bash(__NEW_LINE__ sqlite3 /Users/songjunha/running/running.db \"ALTER TABLE activities ADD COLUMN average_cadence REAL;\")",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

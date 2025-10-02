@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="pastel">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>러닝 기록 비교</title>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes slideOut {
+      from { transform: translateX(0); opacity: 1; }
+      to { transform: translateX(100%); opacity: 0; }
+    }
+
+    /* Pastel theme */
+    [data-theme="pastel"] {
+      color-scheme: light;
+      --color-base-100: oklch(100% 0 0);
+      --color-base-200: oklch(98.462% 0.001 247.838);
+      --color-base-300: oklch(92.462% 0.001 247.838);
+      --color-base-content: oklch(20% 0 0);
+      --color-primary: oklch(90% 0.063 306.703);
+      --color-primary-content: oklch(49% 0.265 301.924);
+      --color-secondary: oklch(89% 0.058 10.001);
+      --color-secondary-content: oklch(51% 0.222 16.935);
+      --color-accent: oklch(90% 0.093 164.15);
+      --color-accent-content: oklch(50% 0.118 165.612);
+      --color-neutral: oklch(55% 0.046 257.417);
+      --color-neutral-content: oklch(92% 0.013 255.508);
+      --color-info: oklch(86% 0.127 207.078);
+      --color-info-content: oklch(52% 0.105 223.128);
+      --color-success: oklch(87% 0.15 154.449);
+      --color-success-content: oklch(52% 0.154 150.069);
+      --color-warning: oklch(83% 0.128 66.29);
+      --color-warning-content: oklch(55% 0.195 38.402);
+      --color-error: oklch(80% 0.114 19.571);
+      --color-error-content: oklch(50% 0.213 27.518);
+      --radius-selector: 1rem;
+      --radius-field: 2rem;
+      --radius-box: 1rem;
+      --size-selector: 0.25rem;
+      --size-field: 0.25rem;
+      --border: 2px;
+      --depth: 0;
+      --noise: 0;
+    }
+  </style>
+</head>
+<body class="bg-base-200">
+  <div class="container mx-auto p-4 max-w-7xl">
+    <!-- Header -->
+    <div class="card bg-base-100 shadow-xl mb-6 border border-base-300">
+      <div class="card-body">
+        <h1 class="card-title text-4xl font-bold text-base-content">🏃‍♂️ 러닝 기록 비교</h1>
+        <p class="text-base-content/70">친구들과 함께하는 러닝 챌린지</p>
+
+        <div class="flex flex-wrap gap-2 mt-4">
+          <div class="btn-group">
+            <button class="btn btn-sm btn-active" data-days="7">최근 7일</button>
+            <button class="btn btn-sm" data-days="30">최근 30일</button>
+            <button class="btn btn-sm" data-days="90">최근 3개월</button>
+          </div>
+
+          <div class="divider divider-horizontal hidden sm:flex"></div>
+
+          <button id="stravaConnect" class="btn btn-warning btn-sm gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169"/>
+            </svg>
+            Strava 연동
+          </button>
+
+          <button id="stravaSync" class="btn btn-success btn-sm gap-2 hidden">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            데이터 동기화
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats Grid -->
+    <div id="stats" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+      <div class="flex justify-center items-center col-span-full">
+        <span class="loading loading-spinner loading-lg text-primary"></span>
+      </div>
+    </div>
+
+    <!-- Recent Activities -->
+    <div class="card bg-base-100 shadow-xl">
+      <div class="card-body">
+        <h2 class="card-title text-2xl">
+          🔥 최근 활동
+          <div class="badge badge-secondary badge-lg">NEW</div>
+        </h2>
+        <div id="activities" class="space-y-3 mt-4">
+          <div class="flex justify-center py-8">
+            <span class="loading loading-dots loading-lg text-primary"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
