@@ -713,13 +713,21 @@ function renderCompetitions(competitions) {
                   </tr>
                 </thead>
                 <tbody>
-                  ${comp.participants.map((p) => `
+                  ${comp.participants.map((p) => {
+                    const hasActivityId = p.activity_id && p.activity_id !== '-';
+                    const resultText = p.result || '-';
+                    return `
                     <tr>
                       <td class="text-xs font-semibold">${p.name}</td>
                       <td class="text-xs">${p.category}</td>
-                      <td class="text-xs text-base-content/60">${p.result || '-'}</td>
+                      <td class="text-xs ${hasActivityId ? 'text-primary font-semibold cursor-pointer hover:underline' : 'text-base-content/60'}"
+                          ${hasActivityId ? `onclick="event.stopPropagation(); openActivityDetail('${p.activity_id}')"` : ''}
+                          ${hasActivityId ? 'style="cursor: pointer;"' : ''}>
+                        ${resultText}
+                      </td>
                     </tr>
-                  `).join('')}
+                  `;
+                  }).join('')}
                 </tbody>
               </table>
             </div>
@@ -857,7 +865,7 @@ async function openCompetitionModal(mode, competitionId = null) {
       // 참가자 목록 채우기
       const participantsList = document.getElementById('participantsList');
       competition.participants.forEach(participant => {
-        addParticipantInput(participant.name, participant.category, participant.strava_id);
+        addParticipantInput(participant.name, participant.category, participant.strava_id, participant.result, participant.activity_id);
       });
     } catch (error) {
       console.error('대회 데이터 로드 오류:', error);
@@ -897,7 +905,7 @@ function updateDateDisplay() {
 }
 
 // 참가자 입력 필드 추가 (관리자 전용 - 등록된 사용자만 선택 가능)
-async function addParticipantInput(name = '', category = '5K', stravaId = null) {
+async function addParticipantInput(name = '', category = '5K', stravaId = null, result = '', activityId = '') {
   const container = document.getElementById('participantsList');
   const index = container.children.length;
 
@@ -937,7 +945,7 @@ async function addParticipantInput(name = '', category = '5K', stravaId = null) 
     </select>
     <select
       class="select select-bordered"
-      style="height: 40px; width: 100px; font-size: 14px;"
+      style="height: 40px; width: 80px; font-size: 14px;"
       id="pCategory${index}"
     >
       <option value="5K" ${category === '5K' ? 'selected' : ''}>5K</option>
@@ -946,6 +954,22 @@ async function addParticipantInput(name = '', category = '5K', stravaId = null) 
       <option value="32K" ${category === '32K' ? 'selected' : ''}>32K</option>
       <option value="Full" ${category === 'Full' ? 'selected' : ''}>Full</option>
     </select>
+    <input
+      type="text"
+      class="input input-bordered"
+      style="height: 40px; width: 80px; font-size: 14px;"
+      id="pResult${index}"
+      placeholder="기록"
+      value="${result}"
+    />
+    <input
+      type="text"
+      class="input input-bordered"
+      style="height: 40px; width: 100px; font-size: 14px;"
+      id="pActivityId${index}"
+      placeholder="Activity ID"
+      value="${activityId}"
+    />
     <button type="button" class="btn btn-ghost btn-sm" onclick="this.parentElement.remove()">
       <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -986,6 +1010,8 @@ async function saveCompetition() {
     const participantDiv = participantsList.children[i];
     const userSelect = document.getElementById(`pUser${i}`);
     const categoryInput = document.getElementById(`pCategory${i}`);
+    const resultInput = document.getElementById(`pResult${i}`);
+    const activityIdInput = document.getElementById(`pActivityId${i}`);
 
     if (userSelect && userSelect.value) {
       // 선택된 사용자의 이름 가져오기
@@ -995,7 +1021,9 @@ async function saveCompetition() {
       const participant = {
         name: userName,
         category: categoryInput.value,
-        strava_id: userSelect.value
+        strava_id: userSelect.value,
+        result: resultInput.value || null,
+        activity_id: activityIdInput.value || null
       };
 
       participants.push(participant);

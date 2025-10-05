@@ -210,95 +210,110 @@ app.get('/api/users/:userId/records', async (req, res) => {
 
 // ============= 대회 API =============
 
+// 참가자 결과 자동 검색 및 업데이트 함수
+async function findAndUpdateParticipantResults(competition) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const compDate = new Date(competition.date.replace(/\//g, '-'));
+  compDate.setHours(0, 0, 0, 0);
+
+  // 대회 날짜가 오늘 포함 과거인 경우만
+  if (compDate > today) {
+    return;
+  }
+
+  for (const participant of competition.participants) {
+    if (participant.strava_id && !participant.result) {
+      // 참가자의 대회 당일 활동 찾기
+      const activities = await activityQueries.getActivitiesByStravaId(participant.strava_id);
+
+      if (activities && activities.length > 0) {
+        // 대회 날짜와 일치하는 활동 찾기
+        const compDateStr = competition.date;
+
+        // 해당 날짜의 모든 활동 필터링
+        const sameDateActivities = activities.filter(act => {
+          const actDate = new Date(act.start_date);
+          const actDateStr = `${actDate.getFullYear()}/${String(actDate.getMonth() + 1).padStart(2, '0')}/${String(actDate.getDate()).padStart(2, '0')}`;
+          return actDateStr === compDateStr;
+        });
+
+        let matchingActivity = null;
+
+        if (sameDateActivities.length > 0) {
+          // 1. 먼저 활동명에 대회명이 포함된 것 찾기
+          matchingActivity = sameDateActivities.find(act =>
+            act.name && act.name.includes(competition.name)
+          );
+
+          // 2. 없으면 종목별 거리 범위로 찾기
+          if (!matchingActivity) {
+            const categoryRanges = {
+              '5K': { min: 4600, max: 5400 },
+              '10K': { min: 9200, max: 10800 },
+              'Half': { min: 20000, max: 22000 },
+              '32K': { min: 30000, max: 34000 },
+              'Full': { min: 40000, max: 46000 }
+            };
+
+            const range = categoryRanges[participant.category];
+            if (range) {
+              // 거리 범위 내의 활동들
+              const inRangeActivities = sameDateActivities.filter(act =>
+                act.distance >= range.min && act.distance <= range.max
+              );
+
+              // 가장 거리가 가까운 것 선택
+              if (inRangeActivities.length > 0) {
+                const targetDistance = (range.min + range.max) / 2;
+                matchingActivity = inRangeActivities.reduce((closest, act) => {
+                  const closestDiff = Math.abs(closest.distance - targetDistance);
+                  const actDiff = Math.abs(act.distance - targetDistance);
+                  return actDiff < closestDiff ? act : closest;
+                });
+              }
+            }
+          }
+        }
+
+        if (matchingActivity) {
+          // 시간 계산 (moving_time을 시:분:초 형식으로)
+          const totalSeconds = matchingActivity.moving_time;
+          const hours = Math.floor(totalSeconds / 3600);
+          const minutes = Math.floor((totalSeconds % 3600) / 60);
+          const seconds = totalSeconds % 60;
+
+          let timeStr;
+          if (hours > 0) {
+            timeStr = `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+          } else {
+            timeStr = `${minutes}:${String(seconds).padStart(2, '0')}`;
+          }
+
+          // DB에 결과 저장
+          await competitionQueries.updateParticipantResult(
+            participant.id,
+            matchingActivity.activity_id,
+            timeStr
+          );
+
+          participant.result = timeStr;
+          participant.activity_id = matchingActivity.activity_id;
+        }
+      }
+    }
+  }
+}
+
 // 모든 대회 조회
 app.get('/api/competitions', async (req, res) => {
   try {
     const competitions = await competitionQueries.getAllCompetitions();
 
-    // 각 대회에 대해 결과 자동 업데이트 (과거 대회만)
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
+    // 각 대회에 대해 결과 자동 업데이트
     for (const comp of competitions) {
-      const compDate = new Date(comp.date.replace(/\//g, '-'));
-      compDate.setHours(0, 0, 0, 0);
-
-      // 대회 날짜가 오늘 포함 과거인 경우
-      if (compDate <= today) {
-        for (const participant of comp.participants) {
-          if (participant.strava_id && !participant.result) {
-            // 참가자의 대회 당일 활동 찾기
-            const activities = await activityQueries.getActivitiesByStravaId(participant.strava_id);
-
-            if (activities && activities.length > 0) {
-              // 대회 날짜와 일치하는 활동 찾기
-              const compDateStr = comp.date;
-
-              // 해당 날짜의 모든 활동 필터링
-              const sameDateActivities = activities.filter(act => {
-                const actDate = new Date(act.start_date);
-                const actDateStr = `${actDate.getFullYear()}/${String(actDate.getMonth() + 1).padStart(2, '0')}/${String(actDate.getDate()).padStart(2, '0')}`;
-                return actDateStr === compDateStr;
-              });
-
-              let matchingActivity = null;
-
-              if (sameDateActivities.length > 0) {
-                // 1. 먼저 활동명에 대회명이 포함된 것 찾기
-                matchingActivity = sameDateActivities.find(act =>
-                  act.name && act.name.includes(comp.name)
-                );
-
-                // 2. 없으면 종목별 거리 범위로 찾기
-                if (!matchingActivity) {
-                  const categoryRanges = {
-                    '5K': { min: 4600, max: 5400 },
-                    '10K': { min: 9200, max: 10800 },
-                    'Half': { min: 20000, max: 22000 },
-                    '32K': { min: 30000, max: 34000 },
-                    'Full': { min: 40000, max: 46000 }
-                  };
-
-                  const range = categoryRanges[participant.category];
-                  if (range) {
-                    // 거리 범위 내의 활동들
-                    const inRangeActivities = sameDateActivities.filter(act =>
-                      act.distance >= range.min && act.distance <= range.max
-                    );
-
-                    // 가장 거리가 가까운 것 선택
-                    if (inRangeActivities.length > 0) {
-                      const targetDistance = (range.min + range.max) / 2;
-                      matchingActivity = inRangeActivities.reduce((closest, act) => {
-                        const closestDiff = Math.abs(closest.distance - targetDistance);
-                        const actDiff = Math.abs(act.distance - targetDistance);
-                        return actDiff < closestDiff ? act : closest;
-                      });
-                    }
-                  }
-                }
-              }
-
-              if (matchingActivity) {
-                // 시간 계산 (moving_time을 시:분:초 형식으로)
-                const totalSeconds = matchingActivity.moving_time;
-                const hours = Math.floor(totalSeconds / 3600);
-                const minutes = Math.floor((totalSeconds % 3600) / 60);
-                const seconds = totalSeconds % 60;
-
-                let timeStr;
-                if (hours > 0) {
-                  timeStr = `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-                } else {
-                  timeStr = `${minutes}:${String(seconds).padStart(2, '0')}`;
-                }
-
-                participant.result = timeStr;
-              }
-            }
-          }
-        }
-      }
+      await findAndUpdateParticipantResults(comp);
     }
 
     res.json(competitions);
@@ -317,6 +332,13 @@ app.post('/api/competitions', async (req, res) => {
     }
 
     const result = await competitionQueries.addCompetition(date, name, participants || []);
+
+    // 새로 생성된 대회 정보 가져와서 결과 자동 검색
+    const newCompetition = await competitionQueries.getCompetition(result.id);
+    if (newCompetition) {
+      await findAndUpdateParticipantResults(newCompetition);
+    }
+
     res.json({ success: true, id: result.id });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -334,6 +356,13 @@ app.put('/api/competitions/:id', async (req, res) => {
     }
 
     await competitionQueries.updateCompetition(id, date, name, participants || []);
+
+    // 업데이트된 대회 정보 가져와서 결과 자동 검색
+    const updatedCompetition = await competitionQueries.getCompetition(parseInt(id));
+    if (updatedCompetition) {
+      await findAndUpdateParticipantResults(updatedCompetition);
+    }
+
     res.json({ success: true, id: parseInt(id) });
   } catch (error) {
     res.status(500).json({ error: error.message });

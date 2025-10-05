@@ -147,6 +147,14 @@ async function initDatabase() {
       // 컬럼이 이미 존재하는 경우 무시
     }
 
+    // 기존 테이블에 activity_id 컬럼 추가 (없는 경우)
+    try {
+      await runQuery(`ALTER TABLE competition_participants ADD COLUMN activity_id TEXT`);
+      console.log('✅ competition_participants 테이블에 activity_id 컬럼 추가됨');
+    } catch (err) {
+      // 컬럼이 이미 존재하는 경우 무시
+    }
+
     // 기존 테이블에 full_sync_done 컬럼 추가 (없는 경우)
     try {
       await runQuery(`ALTER TABLE users ADD COLUMN full_sync_done INTEGER DEFAULT 0`);
@@ -382,8 +390,8 @@ const competitionQueries = {
     if (participants.length > 0) {
       for (const participant of participants) {
         await runQuery(
-          'INSERT INTO competition_participants (competition_id, name, category, strava_id) VALUES (?, ?, ?, ?)',
-          [competitionId, participant.name, participant.category, participant.strava_id || null]
+          'INSERT INTO competition_participants (competition_id, name, category, strava_id, result, activity_id) VALUES (?, ?, ?, ?, ?, ?)',
+          [competitionId, participant.name, participant.category, participant.strava_id || null, participant.result || null, participant.activity_id || null]
         );
       }
     }
@@ -401,7 +409,7 @@ const competitionQueries = {
     // 각 대회에 참가자 추가
     for (const comp of competitions) {
       comp.participants = await allQuery(`
-        SELECT id, name, category, result, strava_id
+        SELECT id, name, category, result, strava_id, activity_id
         FROM competition_participants
         WHERE competition_id = ?
         ORDER BY id ASC
@@ -420,7 +428,7 @@ const competitionQueries = {
 
     if (competition) {
       competition.participants = await allQuery(`
-        SELECT id, name, category, result, strava_id
+        SELECT id, name, category, result, strava_id, activity_id
         FROM competition_participants
         WHERE competition_id = ?
       `, [id]);
@@ -441,8 +449,8 @@ const competitionQueries = {
 
     for (const participant of participants) {
       await runQuery(
-        'INSERT INTO competition_participants (competition_id, name, category, strava_id) VALUES (?, ?, ?, ?)',
-        [id, participant.name, participant.category, participant.strava_id || null]
+        'INSERT INTO competition_participants (competition_id, name, category, strava_id, result, activity_id) VALUES (?, ?, ?, ?, ?, ?)',
+        [id, participant.name, participant.category, participant.strava_id || null, participant.result || null, participant.activity_id || null]
       );
     }
 
@@ -454,6 +462,14 @@ const competitionQueries = {
     // CASCADE로 자동 삭제되지만 명시적으로 삭제
     await runQuery('DELETE FROM competition_participants WHERE competition_id = ?', [id]);
     return await runQuery('DELETE FROM competitions WHERE id = ?', [id]);
+  },
+
+  // 참가자 결과 업데이트
+  updateParticipantResult: async (participantId, activityId, result) => {
+    return await runQuery(
+      'UPDATE competition_participants SET activity_id = ?, result = ? WHERE id = ?',
+      [activityId, result, participantId]
+    );
   }
 };
 
