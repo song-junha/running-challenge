@@ -30,7 +30,8 @@
       "Bash(git commit:*)",
       "Bash(xargs kill:*)",
       "Bash(npm install:*)",
-      "Bash(npm run build:css:*)"
+      "Bash(npm run build:css:*)",
+      "Bash(git pull:*)"
     ],
     "deny": [],
     "ask": []

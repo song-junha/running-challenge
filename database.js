@@ -322,6 +322,14 @@ const activityQueries = {
     `, [start, end]);
   },
 
+  // activity_id로 활동 조회
+  getActivityByActivityId: async (activity_id) => {
+    return await getQuery(`
+      SELECT * FROM activities
+      WHERE activity_id = ?
+    `, [activity_id]);
+  },
+
   // 개인 기록 (5K, 10K, Half, Full)
   getPersonalRecords: async (userId) => {
     const distances = [

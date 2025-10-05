@@ -101,6 +101,66 @@ app.get('/api/activities/user/:userId', async (req, res) => {
   }
 });
 
+// 활동 상세 정보 조회 (Strava API에서 가져오기)
+app.get('/api/activities/:activityId/detail', async (req, res) => {
+  try {
+    const { activityId } = req.params;
+
+    // DB에서 activity_id로 활동 찾기
+    const activity = await activityQueries.getActivityByActivityId(activityId);
+
+    if (!activity) {
+      return res.status(404).json({ error: '활동을 찾을 수 없습니다' });
+    }
+
+    // 해당 사용자의 access_token 가져오기
+    let user = await userQueries.getUser(activity.user_id);
+
+    if (!user || !user.access_token) {
+      return res.status(401).json({ error: '인증 정보가 없습니다' });
+    }
+
+    try {
+      // Strava API에서 활동 상세 정보 가져오기
+      const response = await axios.get(`https://www.strava.com/api/v3/activities/${activityId}`, {
+        headers: { 'Authorization': `Bearer ${user.access_token}` }
+      });
+
+      res.json(response.data);
+    } catch (error) {
+      // 401 에러면 토큰 갱신 시도
+      if (error.response && error.response.status === 401 && user.refresh_token) {
+        console.log('Access token 만료, refresh 시도...');
+
+        // Refresh token으로 새 access token 받기
+        const refreshResponse = await axios.post('https://www.strava.com/oauth/token', {
+          client_id: process.env.STRAVA_CLIENT_ID,
+          client_secret: process.env.STRAVA_CLIENT_SECRET,
+          grant_type: 'refresh_token',
+          refresh_token: user.refresh_token
+        });
+
+        const { access_token, refresh_token } = refreshResponse.data;
+
+        // DB에 새 토큰 저장
+        await userQueries.updateTokens(user.id, access_token, refresh_token);
+
+        // 갱신된 토큰으로 재시도
+        const retryResponse = await axios.get(`https://www.strava.com/api/v3/activities/${activityId}`, {
+          headers: { 'Authorization': `Bearer ${access_token}` }
+        });
+
+        res.json(retryResponse.data);
+      } else {
+        throw error;
+      }
+    }
+  } catch (error) {
+    console.error('활동 상세 정보 조회 실패:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // 활동 추가 (테스트용)
 app.post('/api/activities', async (req, res) => {
   try {

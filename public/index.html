@@ -81,10 +81,22 @@
           </div>
         </div>
 
-        <!-- 필터 버튼 -->
-        <div class="flex gap-2 px-1">
-          <button class="btn btn-sm btn-active" data-filter="future" onclick="filterCompetitions('future')">예정된 대회</button>
-          <button class="btn btn-sm" data-filter="past" onclick="filterCompetitions('past')">지난 대회</button>
+        <!-- 필터 버튼 및 검색 -->
+        <div class="flex flex-col gap-2 px-1">
+          <div class="flex gap-2">
+            <button class="btn btn-sm btn-active" data-filter="future" onclick="filterCompetitions('future')">예정된 대회</button>
+            <button class="btn btn-sm" data-filter="past" onclick="filterCompetitions('past')">지난 대회</button>
+          </div>
+          <div class="flex items-center gap-2">
+            <h3 id="competitionFilterTitle" class="text-sm font-semibold text-primary whitespace-nowrap">🔜 예정된 대회</h3>
+            <input
+              type="text"
+              id="competitionSearch"
+              placeholder="대회명 또는 참가자 검색"
+              class="input input-sm input-bordered flex-1"
+              oninput="searchCompetitions(this.value)"
+            />
+          </div>
         </div>
       </div>
 
@@ -284,6 +296,25 @@
         </div>
       </div>
     </div>
+  </dialog>
+
+  <!-- 활동 상세 모달 -->
+  <dialog id="activityDetailModal" class="modal">
+    <div class="modal-box max-w-4xl">
+      <form method="dialog">
+        <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+      </form>
+      <h3 class="font-bold text-2xl mb-1" id="activityDetailTitle">활동 상세</h3>
+      <p class="text-sm text-base-content/60 mb-4" id="activityDetailDate"></p>
+      <div id="activityDetailContent" class="space-y-4">
+        <div class="flex justify-center py-8">
+          <span class="loading loading-spinner loading-lg text-primary"></span>
+        </div>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+      <button>close</button>
+    </form>
   </dialog>
 
   <!-- Personal Records Modal -->

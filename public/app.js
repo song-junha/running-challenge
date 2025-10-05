@@ -7,6 +7,7 @@ let currentUserId = null;
 let currentUser = null; // 현재 로그인한 사용자 정보 (strava_id 포함)
 let competitionFilter = 'future'; // 대회 필터 상태
 let competitionsCache = []; // 대회 데이터 캐시
+let competitionSearchQuery = ''; // 대회 검색어
 
 // 페이지 로드 시 실행
 document.addEventListener('DOMContentLoaded', () => {
@@ -196,7 +197,13 @@ async function loadActivities() {
           box-shadow: 0 1px 3px rgba(0,0,0,0.08);
           background: white;
           margin-bottom: 6px;
-        ">
+          cursor: pointer;
+          transition: transform 0.2s, box-shadow 0.2s;
+        "
+        onclick="openActivityDetail('${activity.activity_id}')"
+        onmouseenter="this.style.transform='scale(1.02)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)'"
+        onmouseleave="this.style.transform='scale(1)'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.08)'"
+        >
           <!-- 헤더 영역 -->
           <div style="
             display: flex;
@@ -566,7 +573,25 @@ function filterCompetitions(filter) {
     }
   });
 
+  // 헤더 텍스트 및 색상 변경
+  const titleElement = document.getElementById('competitionFilterTitle');
+  if (titleElement) {
+    if (filter === 'future') {
+      titleElement.textContent = '🔜 예정된 대회';
+      titleElement.className = 'text-sm font-semibold text-primary whitespace-nowrap';
+    } else if (filter === 'past') {
+      titleElement.textContent = '📋 지난 대회';
+      titleElement.className = 'text-sm font-semibold text-purple-500 whitespace-nowrap';
+    }
+  }
+
   // 캐시된 데이터로 렌더링
+  renderCompetitions(competitionsCache);
+}
+
+// 대회 검색
+function searchCompetitions(query) {
+  competitionSearchQuery = query;
   renderCompetitions(competitionsCache);
 }
 
@@ -622,14 +647,30 @@ function renderCompetitions(competitions) {
   const todayStr = `${today.getFullYear()}/${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}`;
 
   // 미래/과거 대회 분리
-  let futureCompetitions = competitions.filter(comp => comp.date >= todayStr);
-  let pastCompetitions = competitions.filter(comp => comp.date < todayStr);
+  const originalFutureCompetitions = competitions.filter(comp => comp.date >= todayStr);
+  const originalPastCompetitions = competitions.filter(comp => comp.date < todayStr);
+
+  let futureCompetitions = [...originalFutureCompetitions];
+  let pastCompetitions = [...originalPastCompetitions];
 
   // 필터에 따라 표시할 대회 결정
   if (competitionFilter === 'future') {
     pastCompetitions = [];
   } else if (competitionFilter === 'past') {
     futureCompetitions = [];
+  }
+
+  // 검색어 필터링 (대회명 또는 참가자 이름)
+  if (competitionSearchQuery) {
+    const query = competitionSearchQuery.toLowerCase();
+    futureCompetitions = futureCompetitions.filter(comp =>
+      comp.name.toLowerCase().includes(query) ||
+      comp.participants.some(p => p.name.toLowerCase().includes(query))
+    );
+    pastCompetitions = pastCompetitions.filter(comp =>
+      comp.name.toLowerCase().includes(query) ||
+      comp.participants.some(p => p.name.toLowerCase().includes(query))
+    );
   }
 
   // 대회 카드 생성 함수
@@ -690,32 +731,52 @@ function renderCompetitions(competitions) {
     // HTML 생성
     let html = '';
 
-    // 미래 대회 섹션
-    if (futureCompetitions.length > 0) {
+    // 미래 대회 섹션 (원본 데이터가 있으면 섹션 표시)
+    if (competitionFilter === 'future' && originalFutureCompetitions.length > 0) {
       html += `
         <div class="mb-4">
-          <h3 class="text-sm font-semibold text-primary mb-3 px-1">🔜 예정된 대회</h3>
-          <div class="space-y-3">
-            ${futureCompetitions.map(createCompetitionCard).join('')}
-          </div>
+          ${futureCompetitions.length > 0 ? `
+            <div class="space-y-3">
+              ${futureCompetitions.map(createCompetitionCard).join('')}
+            </div>
+          ` : `
+            <div class="alert alert-warning shadow-md">
+              <div>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current flex-shrink-0 w-6 h-6">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <span>검색 결과가 없습니다</span>
+              </div>
+            </div>
+          `}
         </div>
       `;
     }
 
   // 과거 대회 섹션
-  if (pastCompetitions.length > 0) {
+  if (competitionFilter === 'past' && originalPastCompetitions.length > 0) {
     html += `
-      <div class="${futureCompetitions.length > 0 ? 'mt-6' : ''}">
-        <h3 class="text-sm font-semibold text-base-content/60 mb-3 px-1">📋 지난 대회</h3>
-        <div class="space-y-3">
-          ${pastCompetitions.map(createCompetitionCard).join('')}
-        </div>
+      <div class="${originalFutureCompetitions.length > 0 ? 'mt-6' : ''}">
+        ${pastCompetitions.length > 0 ? `
+          <div class="space-y-3">
+            ${pastCompetitions.map(createCompetitionCard).join('')}
+          </div>
+        ` : `
+          <div class="alert alert-warning shadow-md">
+            <div>
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current flex-shrink-0 w-6 h-6">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              <span>검색 결과가 없습니다</span>
+            </div>
+          </div>
+        `}
       </div>
     `;
   }
 
-  // 대회가 없는 경우 메시지 표시
-  if (futureCompetitions.length === 0 && pastCompetitions.length === 0) {
+  // 대회가 없는 경우 메시지 표시 (원본 데이터 기준)
+  if (originalFutureCompetitions.length === 0 && originalPastCompetitions.length === 0) {
     const filterMessages = {
       'future': '예정된 대회가 없습니다',
       'past': '지난 대회가 없습니다'
@@ -1413,4 +1474,264 @@ async function syncUserFull(userId) {
     console.error('전체 동기화 오류:', error);
     showMessage('전체 동기화 중 오류가 발생했습니다', 'error');
   }
+}
+
+// ============= 활동 상세 모달 =============
+
+// 활동 상세 정보 모달 열기
+async function openActivityDetail(activityId) {
+  const modal = document.getElementById('activityDetailModal');
+  const content = document.getElementById('activityDetailContent');
+
+  // 모달 열기
+  modal.showModal();
+
+  // 로딩 상태 표시
+  content.innerHTML = '<div class="flex justify-center py-8"><span class="loading loading-spinner loading-lg text-primary"></span></div>';
+
+  try {
+    // API에서 활동 상세 정보 가져오기
+    const response = await fetch(`/api/activities/${activityId}/detail`);
+    const activity = await response.json();
+
+    if (!response.ok) {
+      throw new Error(activity.error || '활동 정보를 불러올 수 없습니다');
+    }
+
+    // 모달 제목 업데이트
+    document.getElementById('activityDetailTitle').textContent = activity.name || '활동 상세';
+
+    // 시작 시간 업데이트
+    const startDate = new Date(activity.start_date);
+    const dateStr = startDate.toLocaleDateString('ko-KR', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      weekday: 'short'
+    });
+    const timeStr = startDate.toLocaleTimeString('ko-KR', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    document.getElementById('activityDetailDate').textContent = `${dateStr} ${timeStr}`;
+
+    // 상세 정보 렌더링
+    renderActivityDetail(activity);
+
+  } catch (error) {
+    console.error('활동 상세 정보 로드 실패:', error);
+    content.innerHTML = `
+      <div class="alert alert-error">
+        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current flex-shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <span>${error.message}</span>
+      </div>
+    `;
+  }
+}
+
+// 활동 상세 정보 렌더링
+function renderActivityDetail(activity) {
+  const content = document.getElementById('activityDetailContent');
+
+  const distance = (activity.distance / 1000).toFixed(2);
+  const movingTime = formatTime(activity.moving_time);
+  const elapsedTime = formatTime(activity.elapsed_time);
+  const pace = calculatePace(activity.distance, activity.moving_time);
+  const date = new Date(activity.start_date).toLocaleString('ko-KR');
+
+  // 카드 생성 헬퍼 함수
+  const createStatCard = (icon, label, value, highlight = false) => {
+    let bgClass, borderClass, labelClass, valueClass;
+
+    if (highlight === 'primary') {
+      bgClass = 'bg-gradient-to-br from-primary/10 to-primary/5';
+      borderClass = 'border-primary/20';
+      labelClass = 'text-primary';
+      valueClass = 'text-primary';
+    } else if (highlight === 'error') {
+      bgClass = 'bg-gradient-to-br from-error/10 to-error/5';
+      borderClass = 'border-error/20';
+      labelClass = 'text-error';
+      valueClass = 'text-error';
+    } else {
+      bgClass = 'bg-base-200';
+      borderClass = 'border-base-300';
+      labelClass = 'text-base-content/70';
+      valueClass = '';
+    }
+
+    const emptyValue = !value || value === '-';
+
+    return `<div class="${bgClass} rounded-lg p-2 border ${borderClass}"><div class="text-[10px] ${labelClass} font-semibold mb-0.5">${icon} ${label}</div><div class="text-base font-bold ${valueClass} ${emptyValue ? 'text-base-content/30' : ''}">${value || '-'}</div></div>`;
+  };
+
+  let html = `
+    <!-- 기본 정보 -->
+    <div class="grid grid-cols-2 gap-1 mb-1">
+      ${createStatCard('🏃', '거리', `${distance} km`, 'primary')}
+      ${createStatCard('⏱️', '이동시간', movingTime)}
+    </div>
+    <div class="grid grid-cols-2 gap-1 mb-1">
+      ${createStatCard('⚡', '페이스', pace)}
+      ${createStatCard('❤️', '심박수', activity.average_heartrate ? `${Math.round(activity.average_heartrate)} bpm` : null, activity.average_heartrate ? 'error' : null)}
+    </div>
+    <div class="grid grid-cols-2 gap-1 mb-1">
+      ${createStatCard('👟', '케이던스', activity.average_cadence ? `${Math.round(activity.average_cadence * 2)} spm` : null)}
+      ${createStatCard('⛰️', '고도', `${Math.round(activity.total_elevation_gain || 0)} m`)}
+    </div>
+
+    <div class="divider my-3"></div>
+
+    <!-- 추가 정보 -->
+    <div class="bg-base-200/50 rounded-lg p-3 mb-4">
+      <div class="divide-y divide-base-300/50">
+        ${activity.device_name ? `
+        <div class="flex items-center justify-between py-1.5">
+          <span class="text-xs text-base-content/60 font-medium">⌚ 시계</span>
+          <span class="text-sm font-semibold">${activity.device_name}</span>
+        </div>` : ''}
+        ${activity.gear ? `
+        <div class="flex items-center justify-between py-1.5">
+          <span class="text-xs text-base-content/60 font-medium">👟 신발</span>
+          <span class="text-sm font-semibold">${activity.gear.name}${activity.gear.distance ? ` <span class="text-xs text-base-content/50">(${(activity.gear.distance / 1000).toFixed(1)} km)</span>` : ''}</span>
+        </div>` : ''}
+      </div>
+    </div>
+  `;
+
+  // 랩 정보가 있으면 표시
+  if (activity.laps && activity.laps.length > 0) {
+    html += `
+      <div class="divider">랩별 페이스</div>
+      <div class="overflow-x-auto">
+        <table class="table table-zebra table-sm w-full">
+          <thead>
+            <tr>
+              <th>랩</th>
+              <th>거리</th>
+              <th>페이스</th>
+              <th>심박</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${activity.laps.map((lap, index) => {
+              const lapDistance = (lap.distance / 1000).toFixed(2);
+              const lapPace = calculatePace(lap.distance, lap.moving_time);
+              const lapHR = lap.average_heartrate ? Math.round(lap.average_heartrate) : '-';
+              return `
+                <tr>
+                  <td>${index + 1}</td>
+                  <td>${lapDistance} km</td>
+                  <td>${lapPace}</td>
+                  <td>${lapHR}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  // 지도가 있으면 표시
+  if (activity.map && activity.map.summary_polyline) {
+    html += `
+      <div class="divider">경로</div>
+      <div id="activityMap" style="width: 100%; height: 400px; border-radius: 8px; overflow: hidden;"></div>
+    `;
+  }
+
+  content.innerHTML = html;
+
+  // 지도 렌더링
+  if (activity.map && activity.map.summary_polyline) {
+    renderActivityMap(activity.map.summary_polyline);
+  }
+}
+
+// Polyline 디코딩 함수 (Google Polyline Algorithm)
+function decodePolyline(encoded) {
+  const poly = [];
+  let index = 0, len = encoded.length;
+  let lat = 0, lng = 0;
+
+  while (index < len) {
+    let b, shift = 0, result = 0;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    const dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
+    lat += dlat;
+
+    shift = 0;
+    result = 0;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    const dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
+    lng += dlng;
+
+    poly.push([lat / 1e5, lng / 1e5]);
+  }
+  return poly;
+}
+
+// 지도에 경로 표시 (Leaflet 사용)
+function renderActivityMap(polyline) {
+  // Leaflet이 로드되어 있지 않으면 스크립트 로드
+  if (typeof L === 'undefined') {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+    document.head.appendChild(link);
+
+    const script = document.createElement('script');
+    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    script.onload = () => initMap(polyline);
+    document.head.appendChild(script);
+  } else {
+    initMap(polyline);
+  }
+}
+
+function initMap(polyline) {
+  setTimeout(() => {
+    const coords = decodePolyline(polyline);
+
+    if (coords.length === 0) return;
+
+    // 기존 지도가 있으면 제거
+    const mapContainer = document.getElementById('activityMap');
+    if (!mapContainer) return;
+
+    mapContainer.innerHTML = '';
+
+    // 지도 생성
+    const map = L.map('activityMap');
+
+    // OpenStreetMap 타일 추가
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    // 경로 폴리라인 추가
+    const polylineLayer = L.polyline(coords, {
+      color: '#FF6B6B',
+      weight: 4,
+      opacity: 0.8
+    }).addTo(map);
+
+    // 시작점과 끝점 마커 추가
+    L.marker(coords[0]).addTo(map).bindPopup('시작');
+    L.marker(coords[coords.length - 1]).addTo(map).bindPopup('종료');
+
+    // 경로에 맞게 지도 확대/축소
+    map.fitBounds(polylineLayer.getBounds(), { padding: [20, 20] });
+  }, 100);
 }
