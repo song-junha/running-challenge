@@ -353,58 +353,80 @@ async function fetchAllActivities(accessToken, after) {
   return allActivities;
 }
 
-async function syncUserActivities(userId) {
+async function syncUserActivities(userId, months = null) {
   const user = await userQueries.getUser(userId);
 
   if (!user || !user.access_token) {
     throw new Error('사용자 토큰을 찾을 수 없습니다');
   }
 
-  // 기존 활동 개수 확인
-  const existingActivities = await activityQueries.getUserActivities(userId);
-  const isFirstSync = existingActivities.length === 0;
-
   let activities;
+  let periodDesc;
 
-  if (isFirstSync) {
-    // 첫 동기화: 5년 전부터 모든 데이터 (페이징 처리)
-    console.log(`첫 동기화 시작 - 사용자 ${userId}: 5년 전부터 전체 데이터 가져오기`);
-    const fiveYearsAgo = Math.floor(Date.now() / 1000) - (5 * 365 * 24 * 60 * 60);
-    activities = await fetchAllActivities(user.access_token, fiveYearsAgo);
+  if (months === null) {
+    // 기본 동기화: 기존 로직 유지 (첫 동기화는 5년, 이후는 1년)
+    const existingActivities = await activityQueries.getUserActivities(userId);
+    const isFirstSync = existingActivities.length === 0;
+
+    if (isFirstSync) {
+      console.log(`첫 동기화 시작 - 사용자 ${userId}: 5년 전부터 전체 데이터 가져오기`);
+      const fiveYearsAgo = Math.floor(Date.now() / 1000) - (5 * 365 * 24 * 60 * 60);
+      activities = await fetchAllActivities(user.access_token, fiveYearsAgo);
+      periodDesc = '5년';
+    } else {
+      console.log(`정기 동기화 시작 - 사용자 ${userId}: 최근 1년 데이터 가져오기`);
+      const oneYearAgo = Math.floor(Date.now() / 1000) - (365 * 24 * 60 * 60);
+      activities = await fetchAllActivities(user.access_token, oneYearAgo);
+      periodDesc = '1년';
+    }
   } else {
-    // 이후 동기화: 최근 1년 (페이징 처리)
-    console.log(`정기 동기화 시작 - 사용자 ${userId}: 최근 1년 데이터 가져오기`);
-    const oneYearAgo = Math.floor(Date.now() / 1000) - (365 * 24 * 60 * 60);
-    activities = await fetchAllActivities(user.access_token, oneYearAgo);
+    // 지정된 기간으로 동기화
+    console.log(`동기화 시작 - 사용자 ${userId}: 최근 ${months}개월 데이터 가져오기`);
+    const periodAgo = Math.floor(Date.now() / 1000) - (months * 30 * 24 * 60 * 60);
+    activities = await fetchAllActivities(user.access_token, periodAgo);
+    periodDesc = `${months}개월`;
   }
 
+  // Run 타입이면서 공개 활동만 필터링
+  const runActivities = activities.filter(
+    activity => activity.type === 'Run' && activity.private === false
+  );
+
+  // 20개씩 청크로 나눠서 병렬 처리
+  const CHUNK_SIZE = 20;
   let syncedCount = 0;
 
-  for (const activity of activities) {
-    // Run 타입이면서 공개 활동만 저장
-    if (activity.type === 'Run' && activity.private === false) {
-      await activityQueries.addActivity(
-        userId,
-        activity.id.toString(),
-        activity.name,
-        activity.type,
-        activity.distance,
-        activity.moving_time,
-        activity.elapsed_time,
-        activity.total_elevation_gain,
-        activity.start_date,
-        activity.average_speed,
-        activity.max_speed,
-        activity.average_heartrate || null,
-        activity.average_cadence || null
-      );
-      syncedCount++;
-    }
+  for (let i = 0; i < runActivities.length; i += CHUNK_SIZE) {
+    const chunk = runActivities.slice(i, i + CHUNK_SIZE);
+
+    // 청크 내의 활동들을 병렬로 저장
+    await Promise.all(
+      chunk.map(async (activity) => {
+        await activityQueries.addActivity(
+          userId,
+          activity.id.toString(),
+          activity.name,
+          activity.type,
+          activity.distance,
+          activity.moving_time,
+          activity.elapsed_time,
+          activity.total_elevation_gain,
+          activity.start_date,
+          activity.average_speed,
+          activity.max_speed,
+          activity.average_heartrate || null,
+          activity.average_cadence || null
+        );
+      })
+    );
+
+    syncedCount += chunk.length;
+    console.log(`진행중 - 사용자 ${userId}: ${syncedCount}/${runActivities.length}개 저장됨`);
   }
 
-  console.log(`동기화 완료 - 사용자 ${userId}: ${syncedCount}개 활동 저장 (전체 ${activities.length}개 중)`);
+  console.log(`동기화 완료 - 사용자 ${userId}: ${syncedCount}개 활동 저장 (전체 ${activities.length}개 중, 기간: ${periodDesc})`);
 
-  return { syncedCount, totalActivities: activities.length, isFirstSync };
+  return { syncedCount, totalActivities: activities.length, period: periodDesc };
 }
 
 app.get('/auth/strava', (req, res) => {
@@ -463,7 +485,7 @@ app.get('/auth/strava/callback', async (req, res) => {
   }
 });
 
-// Strava 데이터 동기화 엔드포인트
+// Strava 데이터 동기화 엔드포인트 (1개월)
 app.post('/api/sync', async (req, res) => {
   try {
     const { userId } = req.body;
@@ -472,7 +494,7 @@ app.post('/api/sync', async (req, res) => {
       return res.status(400).json({ error: '사용자 ID가 필요합니다' });
     }
 
-    const result = await syncUserActivities(userId);
+    const result = await syncUserActivities(userId, 1); // 1개월
 
     res.json({
       success: true,
@@ -481,6 +503,31 @@ app.post('/api/sync', async (req, res) => {
     });
   } catch (error) {
     console.error('동기화 오류:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Strava 전체 데이터 동기화 엔드포인트 (5년)
+app.post('/api/sync/full', async (req, res) => {
+  try {
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ error: '사용자 ID가 필요합니다' });
+    }
+
+    const result = await syncUserActivities(userId, 60); // 5년 = 60개월
+
+    // 전체 동기화 완료 플래그 설정
+    await userQueries.updateFullSyncDone(userId);
+
+    res.json({
+      success: true,
+      message: `${result.syncedCount}개의 러닝 활동이 동기화되었습니다 (전체 동기화)`,
+      ...result
+    });
+  } catch (error) {
+    console.error('전체 동기화 오류:', error.message);
     res.status(500).json({ error: error.message });
   }
 });

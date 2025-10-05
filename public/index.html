@@ -65,17 +65,26 @@
 
     <!-- 대회 페이지 -->
     <div id="competitionPage" class="page-content hidden">
-      <!-- 헤더 및 버튼 -->
-      <div class="card bg-base-100 shadow-md mb-4 border border-base-300">
-        <div class="card-body p-4">
-          <div class="flex justify-between items-center mb-3">
-            <h1 class="card-title text-2xl font-bold text-base-content">🏆 대회</h1>
-            <div class="flex gap-2">
-              <button class="btn btn-primary btn-xs" onclick="openCompetitionModal('create')">등록</button>
-              <button class="btn btn-secondary btn-xs" onclick="openCompetitionModal('edit')">수정</button>
-              <button class="btn btn-error btn-xs" onclick="deleteCompetition()">삭제</button>
+      <!-- 고정 헤더 -->
+      <div style="position: sticky; top: 0; z-index: 10; background: #f5f5f5; padding-bottom: 12px;">
+        <!-- 헤더 및 버튼 -->
+        <div class="card bg-base-100 shadow-md mb-3 border border-base-300">
+          <div class="card-body p-4">
+            <div class="flex justify-between items-center">
+              <h1 class="card-title text-2xl font-bold text-base-content">🏆 대회</h1>
+              <div class="flex gap-2">
+                <button class="btn btn-primary btn-xs" onclick="openCompetitionModal('create')">등록</button>
+                <button class="btn btn-secondary btn-xs" onclick="openCompetitionModal('edit')">수정</button>
+                <button class="btn btn-error btn-xs" onclick="deleteCompetition()">삭제</button>
+              </div>
             </div>
           </div>
+        </div>
+
+        <!-- 필터 버튼 -->
+        <div class="flex gap-2 px-1">
+          <button class="btn btn-sm btn-active" data-filter="future" onclick="filterCompetitions('future')">예정된 대회</button>
+          <button class="btn btn-sm" data-filter="past" onclick="filterCompetitions('past')">지난 대회</button>
         </div>
       </div>
 
@@ -259,8 +268,8 @@
           />
         </div>
 
-        <!-- 참가자 목록 -->
-        <div>
+        <!-- 참가자 목록 (관리자 전용) -->
+        <div id="participantsSection">
           <label class="block text-sm font-semibold mb-2">참가자 (선택사항)</label>
           <div id="participantsList" class="space-y-2 max-h-48 overflow-y-auto mb-3"></div>
           <button type="button" class="btn btn-outline w-full" onclick="addParticipantInput()">

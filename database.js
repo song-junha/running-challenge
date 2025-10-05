@@ -147,6 +147,14 @@ async function initDatabase() {
       // 컬럼이 이미 존재하는 경우 무시
     }
 
+    // 기존 테이블에 full_sync_done 컬럼 추가 (없는 경우)
+    try {
+      await runQuery(`ALTER TABLE users ADD COLUMN full_sync_done INTEGER DEFAULT 0`);
+      console.log('✅ users 테이블에 full_sync_done 컬럼 추가됨');
+    } catch (err) {
+      // 컬럼이 이미 존재하는 경우 무시
+    }
+
     console.log('✅ 데이터베이스 초기화 완료');
   } catch (error) {
     console.error('❌ 데이터베이스 초기화 실패:', error);
@@ -171,7 +179,7 @@ const userQueries = {
   
   // 모든 사용자 조회
   getAllUsers: async () => {
-    return await allQuery('SELECT id, name, nickname, strava_id, created_at FROM users');
+    return await allQuery('SELECT id, name, nickname, strava_id, full_sync_done, created_at FROM users');
   },
 
   // Strava ID로 사용자 찾기
@@ -200,6 +208,14 @@ const userQueries = {
     return await runQuery(
       'UPDATE users SET nickname = ? WHERE id = ?',
       [nickname, id]
+    );
+  },
+
+  // 전체 동기화 완료 플래그 업데이트
+  updateFullSyncDone: async (id) => {
+    return await runQuery(
+      'UPDATE users SET full_sync_done = 1 WHERE id = ?',
+      [id]
     );
   }
 };

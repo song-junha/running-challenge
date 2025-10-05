@@ -1,7 +1,12 @@
+// 관리자 설정
+const ADMIN_STRAVA_ID = '25163546';
+
 // 현재 선택된 기간
 let currentPeriod = 'thisMonth';
 let currentUserId = null;
 let currentUser = null; // 현재 로그인한 사용자 정보 (strava_id 포함)
+let competitionFilter = 'future'; // 대회 필터 상태
+let competitionsCache = []; // 대회 데이터 캐시
 
 // 페이지 로드 시 실행
 document.addEventListener('DOMContentLoaded', () => {
@@ -343,7 +348,7 @@ async function loadCurrentUser() {
 
 // 관리자 체크
 function isAdmin() {
-  return currentUser && currentUser.strava_id === '25163546';
+  return currentUser && currentUser.strava_id === ADMIN_STRAVA_ID;
 }
 
 // 자신의 정보인지 체크
@@ -548,6 +553,23 @@ function setupNavigation() {
   });
 }
 
+// 대회 필터 변경
+function filterCompetitions(filter) {
+  competitionFilter = filter;
+
+  // 버튼 활성화 상태 변경
+  document.querySelectorAll('[data-filter]').forEach(btn => {
+    if (btn.dataset.filter === filter) {
+      btn.classList.add('btn-active');
+    } else {
+      btn.classList.remove('btn-active');
+    }
+  });
+
+  // 캐시된 데이터로 렌더링
+  renderCompetitions(competitionsCache);
+}
+
 // 대회 목록 로드
 async function loadCompetitions() {
   const listContainer = document.getElementById('competitionList');
@@ -556,6 +578,9 @@ async function loadCompetitions() {
   try {
     const response = await fetch('/api/competitions');
     const competitions = await response.json();
+
+    // 캐시 저장
+    competitionsCache = competitions;
 
     if (competitions.length === 0) {
       listContainer.innerHTML = `
@@ -571,7 +596,44 @@ async function loadCompetitions() {
       return;
     }
 
-    listContainer.innerHTML = competitions.map(comp => `
+    renderCompetitions(competitions);
+
+  } catch (error) {
+    console.error('대회 목록 로드 실패:', error);
+    listContainer.innerHTML = `
+      <div class="alert alert-error shadow-md">
+        <div>
+          <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current flex-shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span>대회 목록을 불러올 수 없습니다</span>
+        </div>
+      </div>
+    `;
+  }
+}
+
+// 대회 목록 렌더링
+function renderCompetitions(competitions) {
+  const listContainer = document.getElementById('competitionList');
+
+  // 오늘 날짜 (YYYY/MM/DD 형식)
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}/${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}`;
+
+  // 미래/과거 대회 분리
+  let futureCompetitions = competitions.filter(comp => comp.date >= todayStr);
+  let pastCompetitions = competitions.filter(comp => comp.date < todayStr);
+
+  // 필터에 따라 표시할 대회 결정
+  if (competitionFilter === 'future') {
+    pastCompetitions = [];
+  } else if (competitionFilter === 'past') {
+    futureCompetitions = [];
+  }
+
+  // 대회 카드 생성 함수
+  const createCompetitionCard = (comp) => `
       <div class="competition-card card bg-base-100 shadow-md border border-base-300"
            data-competition-id="${comp.id}"
            onclick="selectCompetition(${comp.id})"
@@ -589,7 +651,10 @@ async function loadCompetitions() {
               <div style="font-size: 11px; color: #999; margin-bottom: 4px;">${comp.date}</div>
               <div style="font-size: 16px; font-weight: 600; color: #333;">${comp.name}</div>
             </div>
-            <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); joinCompetition(${comp.id})">참가</button>
+            ${currentUser && comp.participants.some(p => p.strava_id === currentUser.strava_id)
+              ? `<button class="btn btn-error btn-sm" onclick="event.stopPropagation(); leaveCompetition(${comp.id})">참가취소</button>`
+              : `<button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); joinCompetition(${comp.id})">참가</button>`
+            }
           </div>
 
           <!-- 참가자 리스트 -->
@@ -620,25 +685,55 @@ async function loadCompetitions() {
           </div>
         </div>
       </div>
-    `).join('');
+    `;
 
-  } catch (error) {
-    console.error('대회 목록 로드 실패:', error);
-    listContainer.innerHTML = `
-      <div class="alert alert-error shadow-md">
-        <div>
-          <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current flex-shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <span>대회 목록을 불러올 수 없습니다</span>
+    // HTML 생성
+    let html = '';
+
+    // 미래 대회 섹션
+    if (futureCompetitions.length > 0) {
+      html += `
+        <div class="mb-4">
+          <h3 class="text-sm font-semibold text-primary mb-3 px-1">🔜 예정된 대회</h3>
+          <div class="space-y-3">
+            ${futureCompetitions.map(createCompetitionCard).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+  // 과거 대회 섹션
+  if (pastCompetitions.length > 0) {
+    html += `
+      <div class="${futureCompetitions.length > 0 ? 'mt-6' : ''}">
+        <h3 class="text-sm font-semibold text-base-content/60 mb-3 px-1">📋 지난 대회</h3>
+        <div class="space-y-3">
+          ${pastCompetitions.map(createCompetitionCard).join('')}
         </div>
       </div>
     `;
   }
-}
 
-// 전역 변수 - 현재 수정 중인 대회 ID
-let currentEditingCompetitionId = null;
+  // 대회가 없는 경우 메시지 표시
+  if (futureCompetitions.length === 0 && pastCompetitions.length === 0) {
+    const filterMessages = {
+      'future': '예정된 대회가 없습니다',
+      'past': '지난 대회가 없습니다'
+    };
+    html = `
+      <div class="alert alert-info shadow-md">
+        <div>
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current flex-shrink-0 w-6 h-6">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+          <span>${filterMessages[competitionFilter]}</span>
+        </div>
+      </div>
+    `;
+  }
+
+  listContainer.innerHTML = html;
+}
 
 // 대회 모달 열기
 async function openCompetitionModal(mode, competitionId = null) {
@@ -654,6 +749,14 @@ async function openCompetitionModal(mode, competitionId = null) {
   // 모달 제목 설정
   title.textContent = mode === 'create' ? '대회 등록' : '대회 수정';
   currentEditingCompetitionId = mode === 'edit' ? selectedCompetitionId : null;
+
+  // 참가자 섹션 표시 여부 (관리자만)
+  const participantsSection = document.getElementById('participantsSection');
+  if (isAdmin()) {
+    participantsSection.style.display = 'block';
+  } else {
+    participantsSection.style.display = 'none';
+  }
 
   // 폼 초기화
   document.getElementById('compDate').value = '';
@@ -732,25 +835,45 @@ function updateDateDisplay() {
   }
 }
 
-// 참가자 입력 필드 추가
-function addParticipantInput(name = '', category = '5K', stravaId = null) {
+// 참가자 입력 필드 추가 (관리자 전용 - 등록된 사용자만 선택 가능)
+async function addParticipantInput(name = '', category = '5K', stravaId = null) {
   const container = document.getElementById('participantsList');
   const index = container.children.length;
+
+  // 등록된 사용자 목록 가져오기
+  let users = [];
+  try {
+    const response = await fetch('/api/users');
+    users = await response.json();
+  } catch (error) {
+    console.error('사용자 목록 로드 실패:', error);
+    showMessage('사용자 목록을 불러올 수 없습니다', 'error');
+    return;
+  }
 
   const participantDiv = document.createElement('div');
   participantDiv.className = 'flex gap-2 items-center';
   if (stravaId) {
     participantDiv.setAttribute('data-strava-id', stravaId);
   }
+
+  // 사용자 드롭다운 옵션 생성
+  const userOptions = users.map(user => {
+    const displayName = user.nickname || user.name;
+    const isSelected = user.strava_id === stravaId || displayName === name;
+    return `<option value="${user.strava_id}" ${isSelected ? 'selected' : ''}>${displayName}</option>`;
+  }).join('');
+
   participantDiv.innerHTML = `
-    <input
-      type="text"
-      placeholder="이름"
-      class="input input-bordered flex-1"
+    <select
+      class="select select-bordered flex-1"
       style="height: 40px; font-size: 14px;"
-      id="pName${index}"
-      value="${name}"
-    />
+      id="pUser${index}"
+      onchange="updateParticipantStravaId(${index})"
+    >
+      <option value="">참가자 선택</option>
+      ${userOptions}
+    </select>
     <select
       class="select select-bordered"
       style="height: 40px; width: 100px; font-size: 14px;"
@@ -772,6 +895,18 @@ function addParticipantInput(name = '', category = '5K', stravaId = null) {
   container.appendChild(participantDiv);
 }
 
+// 참가자 선택 시 strava_id 업데이트
+function updateParticipantStravaId(index) {
+  const userSelect = document.getElementById(`pUser${index}`);
+  const participantDiv = userSelect.closest('.flex');
+
+  if (userSelect.value) {
+    participantDiv.setAttribute('data-strava-id', userSelect.value);
+  } else {
+    participantDiv.removeAttribute('data-strava-id');
+  }
+}
+
 // 대회 저장
 async function saveCompetition() {
   const date = document.getElementById('compDate').value;
@@ -788,20 +923,19 @@ async function saveCompetition() {
 
   for (let i = 0; i < participantsList.children.length; i++) {
     const participantDiv = participantsList.children[i];
-    const nameInput = document.getElementById(`pName${i}`);
+    const userSelect = document.getElementById(`pUser${i}`);
     const categoryInput = document.getElementById(`pCategory${i}`);
 
-    if (nameInput && nameInput.value.trim()) {
-      const participant = {
-        name: nameInput.value.trim(),
-        category: categoryInput.value
-      };
+    if (userSelect && userSelect.value) {
+      // 선택된 사용자의 이름 가져오기
+      const selectedOption = userSelect.options[userSelect.selectedIndex];
+      const userName = selectedOption.text;
 
-      // strava_id가 있으면 포함
-      const stravaId = participantDiv.getAttribute('data-strava-id');
-      if (stravaId) {
-        participant.strava_id = stravaId;
-      }
+      const participant = {
+        name: userName,
+        category: categoryInput.value,
+        strava_id: userSelect.value
+      };
 
       participants.push(participant);
     }
@@ -977,6 +1111,56 @@ async function joinCompetition(competitionId) {
   }
 }
 
+// 대회 참가 취소
+async function leaveCompetition(competitionId) {
+  if (!currentUserId || !currentUser) {
+    showMessage('로그인이 필요합니다', 'error');
+    return;
+  }
+
+  if (!confirm('정말 참가를 취소하시겠습니까?')) {
+    return;
+  }
+
+  try {
+    // 대회 정보 가져오기
+    const compResponse = await fetch(`/api/competitions`);
+    const competitions = await compResponse.json();
+    const competition = competitions.find(c => c.id === competitionId);
+
+    if (!competition) {
+      showMessage('대회를 찾을 수 없습니다', 'error');
+      return;
+    }
+
+    // 참가자 목록에서 현재 사용자 제거
+    const participants = competition.participants.filter(p => p.strava_id !== currentUser.strava_id);
+
+    // 대회 업데이트
+    const response = await fetch(`/api/competitions/${competitionId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        date: competition.date,
+        name: competition.name,
+        participants: participants
+      })
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      showMessage('참가가 취소되었습니다', 'success');
+      loadCompetitions(); // 목록 새로고침
+    } else {
+      showMessage('참가 취소 실패: ' + (result.error || '알 수 없는 오류'), 'error');
+    }
+  } catch (error) {
+    console.error('참가 취소 오류:', error);
+    showMessage('참가 취소 중 오류가 발생했습니다', 'error');
+  }
+}
+
 // 전역 변수 - 선택된 사용자 ID
 let selectedUserId = null;
 // 전역 변수 - 선택된 대회 ID
@@ -1034,12 +1218,22 @@ async function loadUsers() {
               ${user.name} ${user.strava_id ? '• Strava ID: ' + user.strava_id : ''}
             </div>
           </div>
-          <button
-            class="btn btn-${user.strava_id ? 'success' : 'warning'} btn-sm"
-            onclick="event.stopPropagation(); connectStrava(${user.id})"
-          >
-            ${user.strava_id ? '연동됨' : 'Strava 연동'}
-          </button>
+          <div style="display: flex; gap: 6px;">
+            <button
+              class="btn btn-${user.strava_id ? 'success' : 'warning'} btn-sm"
+              onclick="event.stopPropagation(); connectStrava(${user.id})"
+            >
+              ${user.strava_id ? '연동됨' : 'Strava 연동'}
+            </button>
+            ${user.strava_id && (!user.full_sync_done || user.strava_id === ADMIN_STRAVA_ID) ? `
+              <button
+                class="btn btn-primary btn-sm"
+                onclick="event.stopPropagation(); syncUserFull(${user.id})"
+              >
+                전체 동기화
+              </button>
+            ` : ''}
+          </div>
         </div>
       </div>
     `).join('');
@@ -1187,4 +1381,36 @@ async function deleteUser() {
 // Strava 연동
 function connectStrava(userId) {
   window.location.href = '/auth/strava';
+}
+
+// 전체 동기화 (5년)
+async function syncUserFull(userId) {
+  if (!confirm('최근 5년치 전체 데이터를 동기화하시겠습니까?\n시간이 다소 걸릴 수 있습니다.')) {
+    return;
+  }
+
+  try {
+    showMessage('전체 동기화를 시작합니다...', 'info');
+
+    const response = await fetch('/api/sync/full', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ userId })
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      showMessage(`${result.syncedCount}개의 활동이 동기화되었습니다 (전체 ${result.totalActivities}개 중)`, 'success');
+      loadStats(); // 통계 새로고침
+      loadActivities(); // 활동 새로고침
+    } else {
+      showMessage('전체 동기화 실패: ' + (result.error || '알 수 없는 오류'), 'error');
+    }
+  } catch (error) {
+    console.error('전체 동기화 오류:', error);
+    showMessage('전체 동기화 중 오류가 발생했습니다', 'error');
+  }
 }
