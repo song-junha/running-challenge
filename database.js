@@ -1,8 +1,16 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
+const fs = require('fs');
 
-// 데이터베이스 파일 경로
-const dbPath = path.join(__dirname, 'running.db');
+// 데이터베이스 파일 경로 (환경변수 우선, 없으면 로컬 경로)
+const dbPath = process.env.DB_PATH || path.join(__dirname, 'running.db');
+
+// DB 디렉토리가 없으면 생성
+const dbDir = path.dirname(dbPath);
+if (!fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true });
+}
+
 const db = new sqlite3.Database(dbPath);
 
 // Promise 래퍼 함수들
@@ -64,10 +72,33 @@ async function initDatabase() {
         start_date DATETIME,
         average_speed REAL,
         max_speed REAL,
+        average_heartrate REAL,
+        average_cadence REAL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users (id)
       )
     `);
+
+    // 기존 테이블에 컬럼 추가 (마이그레이션)
+    try {
+      await runQuery(`ALTER TABLE activities ADD COLUMN average_heartrate REAL`);
+      console.log('✅ average_heartrate 컬럼 추가 완료');
+    } catch (error) {
+      // 이미 존재하면 무시
+      if (!error.message.includes('duplicate column name')) {
+        console.error('❌ average_heartrate 컬럼 추가 실패:', error.message);
+      }
+    }
+
+    try {
+      await runQuery(`ALTER TABLE activities ADD COLUMN average_cadence REAL`);
+      console.log('✅ average_cadence 컬럼 추가 완료');
+    } catch (error) {
+      // 이미 존재하면 무시
+      if (!error.message.includes('duplicate column name')) {
+        console.error('❌ average_cadence 컬럼 추가 실패:', error.message);
+      }
+    }
 
     // 대회 테이블
     await runQuery(`
