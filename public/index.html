@@ -1,76 +1,281 @@
 <!DOCTYPE html>
-<html lang="ko" data-theme="pastel">
+<html lang="ko" data-theme="bumblebee">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>러닝 기록 비교</title>
   <link href="output.css" rel="stylesheet" type="text/css" />
 </head>
-<body class="bg-base-200">
-  <div class="container mx-auto p-4 max-w-7xl">
-    <!-- Header -->
-    <div class="card bg-base-100 shadow-xl mb-6 border border-base-300">
-      <div class="card-body">
-        <h1 class="card-title text-4xl font-bold text-base-content">🏃‍♂️ 러닝 기록 비교</h1>
-        <p class="text-base-content/70">친구들과 함께하는 러닝 챌린지</p>
+<body class="bg-base-200" style="padding-bottom: 56px;">
+  <div class="container mx-auto px-3 py-3 max-w-7xl" id="mainContent">
+    <!-- 홈 페이지 -->
+    <div id="homePage" class="page-content">
+      <!-- Header -->
+      <div class="card bg-base-100 shadow-md mb-4 border border-base-300">
+        <div class="card-body p-4">
+          <h1 class="card-title text-2xl font-bold text-base-content">🏃‍♂️ 러닝 챌린지</h1>
 
-        <div class="flex flex-wrap gap-2 mt-4">
-          <div class="btn-group">
-            <button class="btn btn-sm btn-active" data-period="thisMonth">이번달</button>
-            <button class="btn btn-sm" data-period="lastMonth">저번달</button>
-            <button class="btn btn-sm" data-period="thisYear">올해</button>
-            <button class="btn btn-sm" data-period="lastYear">작년</button>
+          <div class="flex flex-wrap gap-2 mt-3">
+            <div class="btn-group">
+              <button class="btn btn-xs btn-active" data-period="thisMonth">이번달</button>
+              <button class="btn btn-xs" data-period="lastMonth">저번달</button>
+              <button class="btn btn-xs" data-period="thisYear">올해</button>
+              <button class="btn btn-xs" data-period="lastYear">작년</button>
+            </div>
+
+            <button id="stravaConnect" class="btn btn-warning btn-xs gap-1">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169"/>
+              </svg>
+              연동
+            </button>
+
+            <button id="stravaSync" class="btn btn-success btn-xs gap-1 hidden">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              동기화
+            </button>
           </div>
+        </div>
+      </div>
 
-          <div class="divider divider-horizontal hidden sm:flex"></div>
-
-          <button id="stravaConnect" class="btn btn-warning btn-sm gap-2">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169"/>
-            </svg>
-            Strava 연동
-          </button>
-
-          <button id="stravaSync" class="btn btn-success btn-sm gap-2 hidden">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            데이터 동기화
-          </button>
-
-          <a href="/admin.html" class="btn btn-ghost btn-sm gap-2">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            관리자
-          </a>
+      <!-- Stats Grid -->
+      <div id="stats" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+        <div class="flex justify-center items-center col-span-full">
+          <span class="loading loading-spinner loading-lg text-primary"></span>
         </div>
       </div>
     </div>
 
-    <!-- Stats Grid -->
-    <div id="stats" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-      <div class="flex justify-center items-center col-span-full">
-        <span class="loading loading-spinner loading-lg text-primary"></span>
+    <!-- 활동 페이지 -->
+    <div id="activityPage" class="page-content hidden">
+      <div class="card bg-base-100 shadow-md mb-4 border border-base-300">
+        <div class="card-body p-4">
+          <h1 class="card-title text-2xl font-bold text-base-content">🔥 최근 활동</h1>
+        </div>
+      </div>
+
+      <div id="activities" class="space-y-2">
+        <div class="flex justify-center py-8">
+          <span class="loading loading-dots loading-lg text-primary"></span>
+        </div>
       </div>
     </div>
 
-    <!-- Recent Activities -->
-    <div class="card bg-base-100 shadow-xl">
-      <div class="card-body">
-        <h2 class="card-title text-2xl">
-          🔥 최근 활동
-          <div class="badge badge-secondary badge-lg">NEW</div>
-        </h2>
-        <div id="activities" class="space-y-3 mt-4">
-          <div class="flex justify-center py-8">
-            <span class="loading loading-dots loading-lg text-primary"></span>
+    <!-- 대회 페이지 -->
+    <div id="competitionPage" class="page-content hidden">
+      <!-- 헤더 및 버튼 -->
+      <div class="card bg-base-100 shadow-md mb-4 border border-base-300">
+        <div class="card-body p-4">
+          <div class="flex justify-between items-center mb-3">
+            <h1 class="card-title text-2xl font-bold text-base-content">🏆 대회</h1>
+            <div class="flex gap-2">
+              <button class="btn btn-primary btn-xs" onclick="openCompetitionModal('create')">등록</button>
+              <button class="btn btn-secondary btn-xs" onclick="openCompetitionModal('edit')">수정</button>
+              <button class="btn btn-error btn-xs" onclick="deleteCompetition()">삭제</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 대회 리스트 -->
+      <div id="competitionList" class="space-y-3">
+        <!-- 로딩 상태 -->
+        <div class="flex justify-center py-8">
+          <span class="loading loading-dots loading-lg text-primary"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 등록 페이지 -->
+    <div id="registerPage" class="page-content hidden">
+      <!-- 헤더 및 버튼 -->
+      <div class="card bg-base-100 shadow-md mb-4 border border-base-300">
+        <div class="card-body p-4">
+          <div class="flex justify-between items-center mb-3">
+            <h1 class="card-title text-2xl font-bold text-base-content">📝 사용자 관리</h1>
+            <div class="flex gap-2">
+              <button class="btn btn-primary btn-xs" onclick="openUserModal('create')">등록</button>
+              <button class="btn btn-secondary btn-xs" onclick="openUserModal('edit')">수정</button>
+              <button class="btn btn-error btn-xs" onclick="deleteUser()">삭제</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 사용자 리스트 -->
+      <div id="userList" class="space-y-2">
+        <!-- 로딩 상태 -->
+        <div class="flex justify-center py-8">
+          <span class="loading loading-dots loading-lg text-primary"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 관리 페이지 -->
+    <div id="adminPage" class="page-content hidden">
+      <div class="card bg-base-100 shadow-md border border-base-300">
+        <div class="card-body p-4">
+          <h1 class="card-title text-2xl font-bold text-base-content">⚙️ 관리</h1>
+          <p class="text-sm text-base-content/70 mb-3">관리자 페이지로 이동합니다</p>
+
+          <div class="flex flex-col items-center justify-center py-12">
+            <a href="/admin.html" class="btn btn-primary btn-md gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              관리자 페이지로 이동
+            </a>
           </div>
         </div>
       </div>
     </div>
   </div>
+
+  <!-- 하단 네비게이션 -->
+  <div style="
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: white;
+    border-top: 1px solid #e5e5e5;
+    display: flex;
+    justify-content: space-around;
+    padding: 6px 0 8px 0;
+    z-index: 1000;
+  ">
+    <button class="nav-item active" data-page="homePage" style="
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 4px 12px;
+      transition: opacity 0.2s;
+      opacity: 1;
+    ">
+      <span style="font-size: 20px;">🏠</span>
+      <span style="font-size: 9px; color: #666;">홈</span>
+    </button>
+    <button class="nav-item" data-page="activityPage" style="
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 4px 12px;
+      transition: opacity 0.2s;
+      opacity: 0.5;
+    ">
+      <span style="font-size: 20px;">🔥</span>
+      <span style="font-size: 9px; color: #666;">활동</span>
+    </button>
+    <button class="nav-item" data-page="competitionPage" style="
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 4px 12px;
+      transition: opacity 0.2s;
+      opacity: 0.5;
+    ">
+      <span style="font-size: 20px;">🏆</span>
+      <span style="font-size: 9px; color: #666;">대회</span>
+    </button>
+    <button class="nav-item" data-page="registerPage" style="
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 4px 12px;
+      transition: opacity 0.2s;
+      opacity: 0.5;
+    ">
+      <span style="font-size: 20px;">📝</span>
+      <span style="font-size: 9px; color: #666;">등록</span>
+    </button>
+    <button class="nav-item" data-page="adminPage" style="
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 4px 12px;
+      transition: opacity 0.2s;
+      opacity: 0.5;
+    ">
+      <span style="font-size: 20px;">⚙️</span>
+      <span style="font-size: 9px; color: #666;">관리</span>
+    </button>
+  </div>
+
+  <!-- 대회 등록/수정 모달 -->
+  <dialog id="competitionModal" class="modal">
+    <div class="modal-box max-w-md">
+      <form method="dialog">
+        <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+      </form>
+      <h3 class="font-bold text-xl mb-6" id="competitionModalTitle">대회 등록</h3>
+
+      <div class="space-y-4">
+        <!-- 날짜 -->
+        <div>
+          <label class="block text-sm font-semibold mb-2">날짜 *</label>
+          <input type="date" id="compDate" class="hidden" required onchange="updateDateDisplay()" />
+          <div
+            onclick="document.getElementById('compDate').showPicker()"
+            class="input input-bordered w-full cursor-pointer flex items-center"
+            style="height: 44px; font-size: 15px;"
+          >
+            <span id="dateDisplay" class="text-base-content/50">날짜를 선택하세요</span>
+          </div>
+        </div>
+
+        <!-- 대회명 -->
+        <div>
+          <label class="block text-sm font-semibold mb-2">대회명 *</label>
+          <input
+            type="text"
+            id="compName"
+            class="input input-bordered w-full"
+            style="height: 44px; font-size: 15px;"
+            placeholder="가을 러닝 챌린지"
+            required
+          />
+        </div>
+
+        <!-- 참가자 목록 -->
+        <div>
+          <label class="block text-sm font-semibold mb-2">참가자 (선택사항)</label>
+          <div id="participantsList" class="space-y-2 max-h-48 overflow-y-auto mb-3"></div>
+          <button type="button" class="btn btn-outline w-full" onclick="addParticipantInput()">
+            + 참가자 추가
+          </button>
+        </div>
+
+        <!-- 저장 버튼 -->
+        <div class="flex gap-2 pt-4">
+          <button type="button" class="btn btn-primary flex-1" onclick="saveCompetition()">저장</button>
+          <button type="button" class="btn btn-ghost flex-1" onclick="closeCompetitionModal()">취소</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
 
   <!-- Personal Records Modal -->
   <dialog id="recordsModal" class="modal">

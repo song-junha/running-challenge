@@ -1,6 +1,7 @@
 // 현재 선택된 기간
 let currentPeriod = 'thisMonth';
 let currentUserId = null;
+let currentUser = null; // 현재 로그인한 사용자 정보 (strava_id 포함)
 
 // 페이지 로드 시 실행
 document.addEventListener('DOMContentLoaded', () => {
@@ -9,6 +10,9 @@ document.addEventListener('DOMContentLoaded', () => {
   loadActivities();
   setupPeriodSelector();
   setupStravaButtons();
+  setupNavigation();
+  loadCompetitions();
+  loadUsers();
 });
 
 // 기간 선택 버튼 설정
@@ -92,20 +96,15 @@ async function loadStats() {
       const distance = (user.total_distance / 1000).toFixed(1);
       const time = formatTime(user.total_time);
       const avgPace = calculatePace(user.total_distance, user.total_time);
-      const rankBadge = index < 3 ? ['🥇', '🥈', '🥉'][index] : `${index + 1}위`;
-      const avgHR = user.avg_heartrate ? Math.round(user.avg_heartrate) : '-';
-      const avgCadence = user.avg_cadence ? Math.round(user.avg_cadence * 2) : '-';
+      const rankBadge = index < 3 ? ['🥇', '🥈', '🥉'][index] : `${index + 1}`;
 
       return `
         <tr class="hover cursor-pointer" onclick="showPersonalRecords(${user.id}, '${user.name || '사용자'}')">
-          <td class="font-bold">${rankBadge}</td>
-          <td class="font-semibold">${user.name || '사용자'}</td>
-          <td><span class="badge badge-primary badge-lg">${distance} km</span></td>
-          <td>${time}</td>
-          <td>${user.activity_count}회</td>
-          <td>${avgPace}</td>
-          <td>${avgHR} bpm</td>
-          <td>${avgCadence} spm</td>
+          <td class="font-bold text-xs">${rankBadge}</td>
+          <td class="font-semibold text-xs">${user.name || '사용자'}</td>
+          <td><span class="badge badge-primary badge-sm">${distance}km</span></td>
+          <td class="text-xs">${time}</td>
+          <td class="text-xs">${avgPace}</td>
         </tr>
       `;
     }).join('');
@@ -113,21 +112,18 @@ async function loadStats() {
     statsContainer.innerHTML = `
       <!-- All Users Table -->
       <div class="col-span-full">
-        <div class="card bg-base-100 shadow-xl">
-          <div class="card-body">
-            <h2 class="card-title text-2xl mb-4">📊 전체 순위</h2>
-            <div class="overflow-x-auto">
-              <table class="table table-zebra">
+        <div class="card bg-base-100 shadow-md">
+          <div class="card-body p-3">
+            <h2 class="card-title text-lg mb-2">📊 전체 순위</h2>
+            <div class="overflow-x-auto -mx-3">
+              <table class="table table-zebra table-xs">
                 <thead>
                   <tr>
-                    <th>순위</th>
-                    <th>이름</th>
-                    <th>총 거리</th>
-                    <th>총 시간</th>
-                    <th>활동 수</th>
-                    <th>평균 페이스</th>
-                    <th>평균 심박수</th>
-                    <th>평균 케이던스</th>
+                    <th class="text-xs">순위</th>
+                    <th class="text-xs">이름</th>
+                    <th class="text-xs">거리</th>
+                    <th class="text-xs">시간</th>
+                    <th class="text-xs">페이스</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -179,48 +175,69 @@ async function loadActivities() {
       return;
     }
     
-    // 활동 목록 생성 (DaisyUI)
+    // 활동 목록 생성
     activitiesContainer.innerHTML = activities.map(activity => {
       const distance = (activity.distance / 1000).toFixed(2);
       const time = formatTime(activity.moving_time);
       const pace = calculatePace(activity.distance, activity.moving_time);
-      const date = new Date(activity.start_date).toLocaleDateString('ko-KR', {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
+      const dateObj = new Date(activity.start_date);
+      const date = `${dateObj.getFullYear()}/${String(dateObj.getMonth() + 1).padStart(2, '0')}/${String(dateObj.getDate()).padStart(2, '0')}`;
 
       return `
-        <div class="card bg-base-100 border-l-4 border-orange-500 shadow hover:shadow-lg transition-all">
-          <div class="card-body p-4">
-            <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-              <div>
-                <h3 class="font-bold text-lg">${activity.name || '러닝'}</h3>
-                <div class="badge badge-warning badge-sm mt-1">${activity.user_name}</div>
-              </div>
-              <div class="text-sm text-gray-500">${date}</div>
+        <div style="
+          padding: 10px 12px;
+          border-radius: 8px;
+          border-left: 3px solid #FF6B6B;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+          background: white;
+          margin-bottom: 6px;
+        ">
+          <!-- 헤더 영역 -->
+          <div style="
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+          ">
+            <div style="
+              display: flex;
+              align-items: center;
+              gap: 6px;
+            ">
+              <span>🔥</span>
+              <span style="
+                font-size: 15px;
+                font-weight: 600;
+                color: #333;
+              ">${activity.name || '러닝'} • ${activity.user_name}</span>
             </div>
+            <div style="
+              font-size: 12px;
+              color: #999;
+            ">${date}</div>
+          </div>
 
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
-              <div class="stat bg-base-200 rounded p-2">
-                <div class="stat-title text-xs">거리</div>
-                <div class="stat-value text-lg">📏 ${distance}</div>
-                <div class="stat-desc text-xs">km</div>
-              </div>
-              <div class="stat bg-base-200 rounded p-2">
-                <div class="stat-title text-xs">시간</div>
-                <div class="stat-value text-lg">⏱️ ${time}</div>
-              </div>
-              <div class="stat bg-base-200 rounded p-2">
-                <div class="stat-title text-xs">페이스</div>
-                <div class="stat-value text-lg">⚡ ${pace}</div>
-              </div>
-              <div class="stat bg-base-200 rounded p-2">
-                <div class="stat-title text-xs">고도</div>
-                <div class="stat-value text-lg">⛰️ ${Math.round(activity.total_elevation_gain || 0)}</div>
-                <div class="stat-desc text-xs">m</div>
-              </div>
+          <!-- 통계 영역 -->
+          <div style="
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+          ">
+            <div style="text-align: center;">
+              <div style="font-size: 14px; font-weight: 600; color: #333;">${distance} km</div>
+              <div style="font-size: 10px; color: #999;">거리</div>
+            </div>
+            <div style="text-align: center;">
+              <div style="font-size: 14px; font-weight: 600; color: #333;">${time}</div>
+              <div style="font-size: 10px; color: #999;">시간</div>
+            </div>
+            <div style="text-align: center;">
+              <div style="font-size: 14px; font-weight: 600; color: #333;">${pace}</div>
+              <div style="font-size: 10px; color: #999;">페이스</div>
+            </div>
+            <div style="text-align: center;">
+              <div style="font-size: 14px; font-weight: 600; color: #333;">${Math.round(activity.total_elevation_gain || 0)}m</div>
+              <div style="font-size: 10px; color: #999;">고도</div>
             </div>
           </div>
         </div>
@@ -274,14 +291,14 @@ function calculatePace(distance, time) {
 
   // 60초가 되면 분으로 올림
   if (seconds === 60) {
-    return `${minutes + 1}'00"/km`;
+    return `${minutes + 1}'00"`;
   }
 
-  return `${minutes}'${seconds.toString().padStart(2, '0')}"/km`;
+  return `${minutes}'${seconds.toString().padStart(2, '0')}"`;
 }
 
 // Strava 연동 상태 확인
-function checkConnectionStatus() {
+async function checkConnectionStatus() {
   const urlParams = new URLSearchParams(window.location.search);
   const connected = urlParams.get('connected');
   const userId = urlParams.get('userId');
@@ -292,6 +309,8 @@ function checkConnectionStatus() {
     localStorage.setItem('stravaUserId', userId);
     showMessage('Strava 연동 완료!', 'success');
     updateStravaButtons(true);
+    // 사용자 정보 가져오기
+    await loadCurrentUser();
     // URL 파라미터 제거
     window.history.replaceState({}, document.title, '/');
   } else if (error) {
@@ -302,8 +321,34 @@ function checkConnectionStatus() {
     if (storedUserId) {
       currentUserId = storedUserId;
       updateStravaButtons(true);
+      // 사용자 정보 가져오기
+      await loadCurrentUser();
     }
   }
+}
+
+// 현재 로그인한 사용자 정보 로드
+async function loadCurrentUser() {
+  if (!currentUserId) return;
+
+  try {
+    const response = await fetch(`/api/users/${currentUserId}`);
+    if (response.ok) {
+      currentUser = await response.json();
+    }
+  } catch (error) {
+    console.error('사용자 정보 로드 실패:', error);
+  }
+}
+
+// 관리자 체크
+function isAdmin() {
+  return currentUser && currentUser.strava_id === '25163546';
+}
+
+// 자신의 정보인지 체크
+function isOwnProfile(userId) {
+  return currentUserId && currentUserId == userId;
 }
 
 // Strava 버튼 설정
@@ -426,8 +471,6 @@ async function showPersonalRecords(userId, userName) {
               <th>거리</th>
               <th>기록</th>
               <th>페이스</th>
-              <th>심박수</th>
-              <th>케이던스</th>
               <th>날짜</th>
             </tr>
           </thead>
@@ -439,28 +482,21 @@ async function showPersonalRecords(userId, userName) {
                 return `
                   <tr>
                     <td class="font-semibold">${distanceLabels[dist]}</td>
-                    <td colspan="5" class="text-base-content/60">기록 없음</td>
+                    <td colspan="3" class="text-base-content/60">기록 없음</td>
                   </tr>
                 `;
               }
 
               const time = formatTime(record.moving_time, true);
               const pace = calculatePace(record.distance, record.moving_time);
-              const date = new Date(record.start_date).toLocaleDateString('ko-KR', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric'
-              });
-              const hr = record.average_heartrate ? Math.round(record.average_heartrate) : '-';
-              const cadence = record.average_cadence ? Math.round(record.average_cadence * 2) : '-';
+              const dateObj = new Date(record.start_date);
+              const date = `${dateObj.getFullYear()}/${String(dateObj.getMonth() + 1).padStart(2, '0')}/${String(dateObj.getDate()).padStart(2, '0')}`;
 
               return `
                 <tr class="hover">
                   <td class="font-semibold text-sm">${distanceLabels[dist]}</td>
                   <td><span class="badge badge-primary">${time}</span></td>
                   <td class="text-sm">${pace}</td>
-                  <td class="text-sm">${hr} bpm</td>
-                  <td class="text-sm">${cadence} spm</td>
                   <td class="text-xs">${date}</td>
                 </tr>
               `;
@@ -481,4 +517,674 @@ async function showPersonalRecords(userId, userName) {
       </div>
     `;
   }
+}
+
+// 네비게이션 설정
+function setupNavigation() {
+  const navItems = document.querySelectorAll('.nav-item');
+  const pages = document.querySelectorAll('.page-content');
+
+  navItems.forEach(item => {
+    item.addEventListener('click', () => {
+      const targetPage = item.dataset.page;
+
+      // 모든 네비게이션 아이템에서 active 제거 및 opacity 0.5로
+      navItems.forEach(nav => {
+        nav.classList.remove('active');
+        nav.style.opacity = '0.5';
+      });
+      // 클릭된 아이템에 active 추가 및 opacity 1로
+      item.classList.add('active');
+      item.style.opacity = '1';
+
+      // 모든 페이지 숨김
+      pages.forEach(page => page.classList.add('hidden'));
+      // 선택된 페이지만 표시
+      document.getElementById(targetPage).classList.remove('hidden');
+
+      // 페이지 맨 위로 스크롤
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  });
+}
+
+// 대회 목록 로드
+async function loadCompetitions() {
+  const listContainer = document.getElementById('competitionList');
+  listContainer.innerHTML = '<div class="flex justify-center py-8"><span class="loading loading-dots loading-lg text-primary"></span></div>';
+
+  try {
+    const response = await fetch('/api/competitions');
+    const competitions = await response.json();
+
+    if (competitions.length === 0) {
+      listContainer.innerHTML = `
+        <div class="alert alert-info shadow-md">
+          <div>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current flex-shrink-0 w-6 h-6">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <span>등록된 대회가 없습니다</span>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    listContainer.innerHTML = competitions.map(comp => `
+      <div class="competition-card card bg-base-100 shadow-md border border-base-300"
+           data-competition-id="${comp.id}"
+           onclick="selectCompetition(${comp.id})"
+           style="cursor: pointer; transition: all 0.2s;">
+        <div class="card-body p-4">
+          <!-- 대회 정보 -->
+          <div style="
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #e5e5e5;
+          ">
+            <div>
+              <div style="font-size: 11px; color: #999; margin-bottom: 4px;">${comp.date}</div>
+              <div style="font-size: 16px; font-weight: 600; color: #333;">${comp.name}</div>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); joinCompetition(${comp.id})">참가</button>
+          </div>
+
+          <!-- 참가자 리스트 -->
+          <div style="margin-top: 12px;">
+            <div style="font-size: 12px; font-weight: 600; color: #666; margin-bottom: 8px;">
+              참가자 (${comp.participants.length}명)
+            </div>
+            <div class="overflow-x-auto">
+              <table class="table table-xs">
+                <thead>
+                  <tr>
+                    <th class="text-xs">이름</th>
+                    <th class="text-xs">종목</th>
+                    <th class="text-xs">결과</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${comp.participants.map((p) => `
+                    <tr>
+                      <td class="text-xs font-semibold">${p.name}</td>
+                      <td class="text-xs">${p.category}</td>
+                      <td class="text-xs text-base-content/60">${p.result || '-'}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    `).join('');
+
+  } catch (error) {
+    console.error('대회 목록 로드 실패:', error);
+    listContainer.innerHTML = `
+      <div class="alert alert-error shadow-md">
+        <div>
+          <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current flex-shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span>대회 목록을 불러올 수 없습니다</span>
+        </div>
+      </div>
+    `;
+  }
+}
+
+// 전역 변수 - 현재 수정 중인 대회 ID
+let currentEditingCompetitionId = null;
+
+// 대회 모달 열기
+async function openCompetitionModal(mode, competitionId = null) {
+  const modal = document.getElementById('competitionModal');
+  const title = document.getElementById('competitionModalTitle');
+
+  // 수정 모드인 경우 선택된 대회 확인
+  if (mode === 'edit' && !selectedCompetitionId) {
+    showMessage('수정할 대회를 선택해주세요', 'error');
+    return;
+  }
+
+  // 모달 제목 설정
+  title.textContent = mode === 'create' ? '대회 등록' : '대회 수정';
+  currentEditingCompetitionId = mode === 'edit' ? selectedCompetitionId : null;
+
+  // 폼 초기화
+  document.getElementById('compDate').value = '';
+  document.getElementById('compName').value = '';
+  document.getElementById('participantsList').innerHTML = '';
+
+  // 날짜 표시 초기화
+  const dateDisplay = document.getElementById('dateDisplay');
+  dateDisplay.textContent = '날짜를 선택하세요';
+  dateDisplay.classList.add('text-base-content/50');
+  dateDisplay.classList.remove('text-base-content');
+
+  // 수정 모드인 경우 데이터 로드
+  if (mode === 'edit' && selectedCompetitionId) {
+    try {
+      const response = await fetch('/api/competitions');
+      const competitions = await response.json();
+      const competition = competitions.find(c => c.id === selectedCompetitionId);
+
+      if (!competition) {
+        showMessage('대회를 찾을 수 없습니다', 'error');
+        return;
+      }
+
+      // 폼에 데이터 채우기
+      // 날짜 형식 변환 (YYYY/MM/DD -> YYYY-MM-DD for date input)
+      const dateForInput = competition.date.replace(/\//g, '-');
+      document.getElementById('compDate').value = dateForInput;
+      document.getElementById('compName').value = competition.name;
+
+      // 날짜 표시 업데이트
+      const dateParts = competition.date.split('/');
+      dateDisplay.textContent = `${dateParts[0]}. ${dateParts[1]}. ${dateParts[2]}.`;
+      dateDisplay.classList.remove('text-base-content/50');
+      dateDisplay.classList.add('text-base-content');
+
+      // 참가자 목록 채우기
+      const participantsList = document.getElementById('participantsList');
+      competition.participants.forEach(participant => {
+        addParticipantInput(participant.name, participant.category, participant.strava_id);
+      });
+    } catch (error) {
+      console.error('대회 데이터 로드 오류:', error);
+      showMessage('대회 정보를 불러올 수 없습니다', 'error');
+      return;
+    }
+  }
+
+  modal.showModal();
+}
+
+// 대회 모달 닫기
+function closeCompetitionModal() {
+  document.getElementById('competitionModal').close();
+  currentEditingCompetitionId = null;
+}
+
+// 날짜 표시 업데이트 (yyyy. mm. dd. 형식)
+function updateDateDisplay() {
+  const dateInput = document.getElementById('compDate');
+  const dateDisplay = document.getElementById('dateDisplay');
+
+  if (dateInput.value) {
+    const date = new Date(dateInput.value + 'T00:00:00');
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+
+    dateDisplay.textContent = `${year}. ${month}. ${day}.`;
+    dateDisplay.classList.remove('text-base-content/50');
+    dateDisplay.classList.add('text-base-content');
+  } else {
+    dateDisplay.textContent = '날짜를 선택하세요';
+    dateDisplay.classList.add('text-base-content/50');
+    dateDisplay.classList.remove('text-base-content');
+  }
+}
+
+// 참가자 입력 필드 추가
+function addParticipantInput(name = '', category = '5K', stravaId = null) {
+  const container = document.getElementById('participantsList');
+  const index = container.children.length;
+
+  const participantDiv = document.createElement('div');
+  participantDiv.className = 'flex gap-2 items-center';
+  if (stravaId) {
+    participantDiv.setAttribute('data-strava-id', stravaId);
+  }
+  participantDiv.innerHTML = `
+    <input
+      type="text"
+      placeholder="이름"
+      class="input input-bordered flex-1"
+      style="height: 40px; font-size: 14px;"
+      id="pName${index}"
+      value="${name}"
+    />
+    <select
+      class="select select-bordered"
+      style="height: 40px; width: 100px; font-size: 14px;"
+      id="pCategory${index}"
+    >
+      <option value="5K" ${category === '5K' ? 'selected' : ''}>5K</option>
+      <option value="10K" ${category === '10K' ? 'selected' : ''}>10K</option>
+      <option value="Half" ${category === 'Half' ? 'selected' : ''}>Half</option>
+      <option value="32K" ${category === '32K' ? 'selected' : ''}>32K</option>
+      <option value="Full" ${category === 'Full' ? 'selected' : ''}>Full</option>
+    </select>
+    <button type="button" class="btn btn-ghost btn-sm" onclick="this.parentElement.remove()">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+      </svg>
+    </button>
+  `;
+
+  container.appendChild(participantDiv);
+}
+
+// 대회 저장
+async function saveCompetition() {
+  const date = document.getElementById('compDate').value;
+  const name = document.getElementById('compName').value;
+
+  if (!date || !name) {
+    showMessage('날짜와 대회명을 입력해주세요', 'error');
+    return;
+  }
+
+  // 참가자 목록 수집
+  const participants = [];
+  const participantsList = document.getElementById('participantsList');
+
+  for (let i = 0; i < participantsList.children.length; i++) {
+    const participantDiv = participantsList.children[i];
+    const nameInput = document.getElementById(`pName${i}`);
+    const categoryInput = document.getElementById(`pCategory${i}`);
+
+    if (nameInput && nameInput.value.trim()) {
+      const participant = {
+        name: nameInput.value.trim(),
+        category: categoryInput.value
+      };
+
+      // strava_id가 있으면 포함
+      const stravaId = participantDiv.getAttribute('data-strava-id');
+      if (stravaId) {
+        participant.strava_id = stravaId;
+      }
+
+      participants.push(participant);
+    }
+  }
+
+  // 날짜 형식 변환 (YYYY-MM-DD -> YYYY/MM/DD)
+  const formattedDate = date.replace(/-/g, '/');
+
+  try {
+    let response;
+    if (currentEditingCompetitionId) {
+      // 수정 모드
+      response = await fetch(`/api/competitions/${currentEditingCompetitionId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: formattedDate,
+          name: name,
+          participants: participants
+        })
+      });
+    } else {
+      // 등록 모드
+      response = await fetch('/api/competitions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: formattedDate,
+          name: name,
+          participants: participants
+        })
+      });
+    }
+
+    const result = await response.json();
+
+    if (result.success) {
+      showMessage(currentEditingCompetitionId ? '대회가 수정되었습니다' : '대회가 등록되었습니다', 'success');
+      closeCompetitionModal();
+      loadCompetitions(); // 목록 새로고침
+    } else {
+      showMessage('대회 저장 실패: ' + (result.error || '알 수 없는 오류'), 'error');
+    }
+  } catch (error) {
+    console.error('대회 저장 오류:', error);
+    showMessage('대회 저장 중 오류가 발생했습니다', 'error');
+  }
+}
+
+// 대회 삭제
+async function deleteCompetition() {
+  if (!selectedCompetitionId) {
+    showMessage('삭제할 대회를 선택해주세요', 'error');
+    return;
+  }
+
+  if (!confirm('정말 이 대회를 삭제하시겠습니까?')) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/competitions/${selectedCompetitionId}`, {
+      method: 'DELETE'
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      showMessage('대회가 삭제되었습니다', 'success');
+      selectedCompetitionId = null;
+      loadCompetitions(); // 목록 새로고침
+    } else {
+      showMessage('대회 삭제 실패: ' + (result.error || '알 수 없는 오류'), 'error');
+    }
+  } catch (error) {
+    console.error('대회 삭제 오류:', error);
+    showMessage('대회 삭제 중 오류가 발생했습니다', 'error');
+  }
+}
+
+// 대회 참가
+// 대회 선택
+function selectCompetition(competitionId) {
+  // 모든 카드에서 선택 해제
+  document.querySelectorAll('.competition-card').forEach(card => {
+    card.style.background = '';
+    card.style.borderColor = '';
+    card.style.transform = '';
+  });
+
+  // 선택된 카드 강조
+  const selectedCard = document.querySelector(`[data-competition-id="${competitionId}"]`);
+  if (selectedCard) {
+    selectedCard.style.background = '#FEF3C7';
+    selectedCard.style.borderColor = '#F59E0B';
+    selectedCard.style.transform = 'scale(1.02)';
+  }
+
+  selectedCompetitionId = competitionId;
+}
+
+// 대회 참가
+async function joinCompetition(competitionId) {
+  if (!currentUserId || !currentUser) {
+    showMessage('로그인이 필요합니다', 'error');
+    return;
+  }
+
+  // 종목 선택 (5K, 10K, Half, 32K, Full)
+  const categories = ['5K', '10K', 'Half', '32K', 'Full'];
+  const categoryOptions = categories.map((cat, idx) => `${idx + 1}. ${cat}`).join('\n');
+  const categoryInput = prompt(`참가 종목을 선택하세요:\n${categoryOptions}\n\n번호를 입력하세요 (1-5):`);
+
+  if (!categoryInput) return;
+
+  const categoryIndex = parseInt(categoryInput) - 1;
+  if (categoryIndex < 0 || categoryIndex >= categories.length) {
+    showMessage('올바른 번호를 입력하세요', 'error');
+    return;
+  }
+
+  const selectedCategory = categories[categoryIndex];
+
+  try {
+    // 대회 정보 가져오기
+    const compResponse = await fetch(`/api/competitions`);
+    const competitions = await compResponse.json();
+    const competition = competitions.find(c => c.id === competitionId);
+
+    if (!competition) {
+      showMessage('대회를 찾을 수 없습니다', 'error');
+      return;
+    }
+
+    // 참가자 추가
+    const participants = competition.participants || [];
+    const userName = currentUser.nickname || currentUser.name;
+
+    // 이미 참가했는지 확인 (strava_id로 확인)
+    if (participants.some(p => p.strava_id === currentUser.strava_id)) {
+      showMessage('이미 참가한 대회입니다', 'error');
+      return;
+    }
+
+    participants.push({
+      name: userName,
+      category: selectedCategory,
+      strava_id: currentUser.strava_id
+    });
+
+    // 대회 업데이트
+    const response = await fetch(`/api/competitions/${competitionId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        date: competition.date,
+        name: competition.name,
+        participants: participants
+      })
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      showMessage(`${selectedCategory} 종목에 참가했습니다!`, 'success');
+      loadCompetitions(); // 목록 새로고침
+    } else {
+      showMessage('참가 실패: ' + (result.error || '알 수 없는 오류'), 'error');
+    }
+  } catch (error) {
+    console.error('참가 오류:', error);
+    showMessage('참가 중 오류가 발생했습니다', 'error');
+  }
+}
+
+// 전역 변수 - 선택된 사용자 ID
+let selectedUserId = null;
+// 전역 변수 - 선택된 대회 ID
+let selectedCompetitionId = null;
+
+// 사용자 목록 로드
+async function loadUsers() {
+  const listContainer = document.getElementById('userList');
+  listContainer.innerHTML = '<div class="flex justify-center py-8"><span class="loading loading-dots loading-lg text-primary"></span></div>';
+
+  try {
+    const response = await fetch('/api/users');
+    const users = await response.json();
+
+    if (users.length === 0) {
+      listContainer.innerHTML = `
+        <div class="alert alert-info shadow-md">
+          <div>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current flex-shrink-0 w-6 h-6">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <span>등록된 사용자가 없습니다</span>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    listContainer.innerHTML = users.map(user => `
+      <div
+        class="user-card"
+        data-user-id="${user.id}"
+        onclick="selectUser(${user.id})"
+        style="
+          padding: 12px 14px;
+          border-radius: 8px;
+          border-left: 3px solid #4ADE80;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+          background: white;
+          margin-bottom: 6px;
+          cursor: pointer;
+          transition: all 0.2s;
+        "
+      >
+        <div style="
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        ">
+          <div>
+            <div style="font-size: 15px; font-weight: 600; color: #333;">
+              ${user.nickname || user.name}
+            </div>
+            <div style="font-size: 11px; color: #999; margin-top: 2px;">
+              ${user.name} ${user.strava_id ? '• Strava ID: ' + user.strava_id : ''}
+            </div>
+          </div>
+          <button
+            class="btn btn-${user.strava_id ? 'success' : 'warning'} btn-sm"
+            onclick="event.stopPropagation(); connectStrava(${user.id})"
+          >
+            ${user.strava_id ? '연동됨' : 'Strava 연동'}
+          </button>
+        </div>
+      </div>
+    `).join('');
+
+  } catch (error) {
+    console.error('사용자 목록 로드 실패:', error);
+    listContainer.innerHTML = `
+      <div class="alert alert-error shadow-md">
+        <div>
+          <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current flex-shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span>사용자 목록을 불러올 수 없습니다</span>
+        </div>
+      </div>
+    `;
+  }
+}
+
+// 사용자 선택
+function selectUser(userId) {
+  // 권한 체크: 자신의 정보이거나 관리자만 선택 가능
+  if (!isAdmin() && !isOwnProfile(userId)) {
+    showMessage('자신의 정보만 수정할 수 있습니다', 'error');
+    return;
+  }
+
+  // 모든 카드에서 선택 해제
+  document.querySelectorAll('.user-card').forEach(card => {
+    card.style.background = 'white';
+    card.style.borderLeft = '3px solid #4ADE80';
+    card.style.transform = 'scale(1)';
+  });
+
+  // 선택된 카드 강조
+  const selectedCard = document.querySelector(`[data-user-id="${userId}"]`);
+  if (selectedCard) {
+    selectedCard.style.background = '#F0FDF4';
+    selectedCard.style.borderLeft = '3px solid #22C55E';
+    selectedCard.style.transform = 'scale(1.02)';
+  }
+
+  selectedUserId = userId;
+}
+
+// 사용자 모달 열기
+async function openUserModal(mode) {
+  if (mode === 'create') {
+    showMessage('사용자 등록 기능 준비중', 'info');
+    return;
+  }
+
+  if (mode === 'edit') {
+    if (!selectedUserId) {
+      showMessage('수정할 사용자를 선택해주세요', 'error');
+      return;
+    }
+
+    // 권한 체크
+    if (!isAdmin() && !isOwnProfile(selectedUserId)) {
+      showMessage('자신의 정보만 수정할 수 있습니다', 'error');
+      return;
+    }
+
+    // 사용자 정보 가져오기
+    const response = await fetch('/api/users');
+    const users = await response.json();
+    const user = users.find(u => u.id === selectedUserId);
+
+    if (!user) {
+      showMessage('사용자를 찾을 수 없습니다', 'error');
+      return;
+    }
+
+    // 닉네임 입력 받기
+    const newNickname = prompt('새로운 닉네임을 입력하세요', user.nickname || user.name);
+
+    if (!newNickname || newNickname.trim() === '') {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/users/${selectedUserId}/nickname`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nickname: newNickname.trim() })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        showMessage('닉네임이 수정되었습니다', 'success');
+        loadUsers(); // 목록 새로고침
+        loadStats(); // 통계도 새로고침
+        loadActivities(); // 활동도 새로고침
+      } else {
+        showMessage('닉네임 수정 실패: ' + (result.error || '알 수 없는 오류'), 'error');
+      }
+    } catch (error) {
+      console.error('닉네임 수정 오류:', error);
+      showMessage('닉네임 수정 중 오류가 발생했습니다', 'error');
+    }
+  }
+}
+
+// 사용자 삭제
+async function deleteUser() {
+  if (!selectedUserId) {
+    showMessage('삭제할 사용자를 선택해주세요', 'error');
+    return;
+  }
+
+  // 권한 체크
+  if (!isAdmin() && !isOwnProfile(selectedUserId)) {
+    showMessage('자신의 정보만 삭제할 수 있습니다', 'error');
+    return;
+  }
+
+  if (!confirm('정말 이 사용자를 삭제하시겠습니까?')) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/users/${selectedUserId}`, {
+      method: 'DELETE'
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      showMessage('사용자가 삭제되었습니다', 'success');
+      selectedUserId = null;
+      loadUsers(); // 목록 새로고침
+      loadStats(); // 통계도 새로고침
+      loadActivities(); // 활동도 새로고침
+    } else {
+      showMessage('사용자 삭제 실패: ' + (result.error || '알 수 없는 오류'), 'error');
+    }
+  } catch (error) {
+    console.error('사용자 삭제 오류:', error);
+    showMessage('사용자 삭제 중 오류가 발생했습니다', 'error');
+  }
+}
+
+// Strava 연동
+function connectStrava(userId) {
+  window.location.href = '/auth/strava';
 }
