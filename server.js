@@ -309,12 +309,15 @@ async function findAndUpdateParticipantResults(competition) {
 // 모든 대회 조회
 app.get('/api/competitions', async (req, res) => {
   try {
-    const competitions = await competitionQueries.getAllCompetitions();
+    let competitions = await competitionQueries.getAllCompetitions();
 
     // 각 대회에 대해 결과 자동 업데이트
     for (const comp of competitions) {
       await findAndUpdateParticipantResults(comp);
     }
+
+    // 업데이트된 데이터 다시 조회
+    competitions = await competitionQueries.getAllCompetitions();
 
     res.json(competitions);
   } catch (error) {
