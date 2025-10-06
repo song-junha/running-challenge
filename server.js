@@ -212,8 +212,11 @@ app.get('/api/users/:userId/records', async (req, res) => {
 
 // 참가자 결과 자동 검색 및 업데이트 함수
 async function findAndUpdateParticipantResults(competition) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // 한국 시간 기준으로 오늘 날짜 (UTC+9)
+  const now = new Date();
+  const koreaOffset = 9 * 60; // 9시간을 분으로
+  const koreaTime = new Date(now.getTime() + (koreaOffset + now.getTimezoneOffset()) * 60000);
+  const today = new Date(koreaTime.getFullYear(), koreaTime.getMonth(), koreaTime.getDate());
 
   const compDate = new Date(competition.date.replace(/\//g, '-'));
   compDate.setHours(0, 0, 0, 0);
