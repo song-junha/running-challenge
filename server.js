@@ -243,10 +243,12 @@ async function findAndUpdateParticipantResults(competition) {
         const compDateStr = competition.date;
         console.log(`[DEBUG] 찾으려는 대회 날짜: ${compDateStr}`);
 
-        // 해당 날짜의 모든 활동 필터링
+        // 해당 날짜의 모든 활동 필터링 (한국 시간 기준)
         const sameDateActivities = activities.filter(act => {
           const actDate = new Date(act.start_date);
-          const actDateStr = `${actDate.getFullYear()}/${String(actDate.getMonth() + 1).padStart(2, '0')}/${String(actDate.getDate()).padStart(2, '0')}`;
+          // 활동 날짜도 한국 시간으로 변환
+          const koreaActivityTime = new Date(actDate.getTime() + (koreaOffset + actDate.getTimezoneOffset()) * 60000);
+          const actDateStr = `${koreaActivityTime.getFullYear()}/${String(koreaActivityTime.getMonth() + 1).padStart(2, '0')}/${String(koreaActivityTime.getDate()).padStart(2, '0')}`;
           console.log(`[DEBUG] 활동 날짜: ${actDateStr} (${act.name}), 비교: ${actDateStr === compDateStr}`);
           return actDateStr === compDateStr;
         });
