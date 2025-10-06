@@ -117,7 +117,12 @@
           <div class="flex justify-between items-center mb-3">
             <h1 class="card-title text-2xl font-bold text-base-content">📝 사용자 관리</h1>
             <div class="flex gap-2">
-              <button class="btn btn-primary btn-xs" onclick="openUserModal('create')">등록</button>
+              <button class="btn btn-warning btn-xs gap-1" onclick="window.location.href='/auth/strava'">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169"/>
+                </svg>
+                연동
+              </button>
               <button class="btn btn-secondary btn-xs" onclick="openUserModal('edit')">수정</button>
               <button class="btn btn-error btn-xs" onclick="deleteUser()">삭제</button>
             </div>
