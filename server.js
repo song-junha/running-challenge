@@ -221,15 +221,22 @@ async function findAndUpdateParticipantResults(competition) {
   const compDate = new Date(competition.date.replace(/\//g, '-'));
   compDate.setHours(0, 0, 0, 0);
 
+  console.log(`[DEBUG] 대회: ${competition.name}, 날짜: ${competition.date}`);
+  console.log(`[DEBUG] 오늘(한국): ${today.toISOString()}, 대회날짜: ${compDate.toISOString()}`);
+
   // 대회 날짜가 오늘 포함 과거인 경우만
   if (compDate > today) {
+    console.log(`[DEBUG] 미래 대회이므로 스킵`);
     return;
   }
 
   for (const participant of competition.participants) {
+    console.log(`[DEBUG] 참가자: ${participant.name}, strava_id: ${participant.strava_id}, 기존 결과: ${participant.result}`);
+
     if (participant.strava_id && !participant.result) {
       // 참가자의 대회 당일 활동 찾기
       const activities = await activityQueries.getActivitiesByStravaId(participant.strava_id);
+      console.log(`[DEBUG] ${participant.name}의 활동 ${activities.length}개 발견`);
 
       if (activities && activities.length > 0) {
         // 대회 날짜와 일치하는 활동 찾기
