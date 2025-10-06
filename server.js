@@ -221,27 +221,19 @@ async function findAndUpdateParticipantResults(competition) {
   const compDate = new Date(competition.date.replace(/\//g, '-'));
   compDate.setHours(0, 0, 0, 0);
 
-  console.log(`[DEBUG] 대회: ${competition.name}, 날짜: ${competition.date}`);
-  console.log(`[DEBUG] 오늘(한국): ${today.toISOString()}, 대회날짜: ${compDate.toISOString()}`);
-
   // 대회 날짜가 오늘 포함 과거인 경우만
   if (compDate > today) {
-    console.log(`[DEBUG] 미래 대회이므로 스킵`);
     return;
   }
 
   for (const participant of competition.participants) {
-    console.log(`[DEBUG] 참가자: ${participant.name}, strava_id: ${participant.strava_id}, 기존 결과: ${participant.result}`);
-
     if (participant.strava_id && !participant.result) {
       // 참가자의 대회 당일 활동 찾기
       const activities = await activityQueries.getActivitiesByStravaId(participant.strava_id);
-      console.log(`[DEBUG] ${participant.name}의 활동 ${activities.length}개 발견`);
 
       if (activities && activities.length > 0) {
         // 대회 날짜와 일치하는 활동 찾기
         const compDateStr = competition.date;
-        console.log(`[DEBUG] 찾으려는 대회 날짜: ${compDateStr}`);
 
         // 해당 날짜의 모든 활동 필터링 (한국 시간 기준)
         const sameDateActivities = activities.filter(act => {
@@ -249,11 +241,8 @@ async function findAndUpdateParticipantResults(competition) {
           // 활동 날짜도 한국 시간으로 변환
           const koreaActivityTime = new Date(actDate.getTime() + (koreaOffset + actDate.getTimezoneOffset()) * 60000);
           const actDateStr = `${koreaActivityTime.getFullYear()}/${String(koreaActivityTime.getMonth() + 1).padStart(2, '0')}/${String(koreaActivityTime.getDate()).padStart(2, '0')}`;
-          console.log(`[DEBUG] 활동 날짜: ${actDateStr} (${act.name}), 비교: ${actDateStr === compDateStr}`);
           return actDateStr === compDateStr;
         });
-
-        console.log(`[DEBUG] 같은 날짜 활동 ${sameDateActivities.length}개 발견`);
 
         let matchingActivity = null;
 
