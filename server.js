@@ -241,13 +241,17 @@ async function findAndUpdateParticipantResults(competition) {
       if (activities && activities.length > 0) {
         // 대회 날짜와 일치하는 활동 찾기
         const compDateStr = competition.date;
+        console.log(`[DEBUG] 찾으려는 대회 날짜: ${compDateStr}`);
 
         // 해당 날짜의 모든 활동 필터링
         const sameDateActivities = activities.filter(act => {
           const actDate = new Date(act.start_date);
           const actDateStr = `${actDate.getFullYear()}/${String(actDate.getMonth() + 1).padStart(2, '0')}/${String(actDate.getDate()).padStart(2, '0')}`;
+          console.log(`[DEBUG] 활동 날짜: ${actDateStr} (${act.name}), 비교: ${actDateStr === compDateStr}`);
           return actDateStr === compDateStr;
         });
+
+        console.log(`[DEBUG] 같은 날짜 활동 ${sameDateActivities.length}개 발견`);
 
         let matchingActivity = null;
 
