@@ -505,7 +505,7 @@ async function showPersonalRecords(userId, userName) {
               const date = `${dateObj.getFullYear()}/${String(dateObj.getMonth() + 1).padStart(2, '0')}/${String(dateObj.getDate()).padStart(2, '0')}`;
 
               return `
-                <tr class="hover">
+                <tr class="hover cursor-pointer" onclick="openActivityDetail('${record.activity_id}')" style="cursor: pointer;">
                   <td class="font-semibold text-sm">${distanceLabels[dist]}</td>
                   <td><span class="badge badge-primary">${time}</span></td>
                   <td class="text-sm">${pace}</td>
@@ -1599,7 +1599,7 @@ function renderActivityDetail(activity) {
     <!-- 기본 정보 -->
     <div class="grid grid-cols-2 gap-1 mb-1">
       ${createStatCard('🏃', '거리', `${distance} km`, 'primary')}
-      ${createStatCard('⏱️', '이동시간', movingTime)}
+      ${createStatCard('⏱️', '기록', movingTime)}
     </div>
     <div class="grid grid-cols-2 gap-1 mb-1">
       ${createStatCard('⚡', '페이스', pace)}
@@ -1630,6 +1630,43 @@ function renderActivityDetail(activity) {
   `;
 
   // 랩 정보가 있으면 표시
+  if (activity.laps && activity.laps.length > 0) {
+    html += `
+      <div class="divider">랩별 데이터</div>
+
+      <!-- 차트 영역 -->
+      <div class="grid grid-cols-1 gap-3 mb-4">
+        <div class="bg-base-200/50 rounded-lg p-3" style="max-height: 140px;">
+          <h4 class="text-xs font-semibold mb-2 text-base-content/70">⚡ 페이스</h4>
+          <div style="height: 100px;">
+            <canvas id="paceChart"></canvas>
+          </div>
+        </div>
+        <div class="bg-base-200/50 rounded-lg p-3" style="max-height: 140px;">
+          <h4 class="text-xs font-semibold mb-2 text-base-content/70">❤️ 심박수</h4>
+          <div style="height: 100px;">
+            <canvas id="heartRateChart"></canvas>
+          </div>
+        </div>
+        <div class="bg-base-200/50 rounded-lg p-3" style="max-height: 140px;">
+          <h4 class="text-xs font-semibold mb-2 text-base-content/70">👟 케이던스</h4>
+          <div style="height: 100px;">
+            <canvas id="cadenceChart"></canvas>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // 지도가 있으면 표시
+  if (activity.map && activity.map.summary_polyline) {
+    html += `
+      <div class="divider">경로</div>
+      <div id="activityMap" style="width: 100%; height: 400px; border-radius: 8px; overflow: hidden;"></div>
+    `;
+  }
+
+  // 랩별 페이스 테이블
   if (activity.laps && activity.laps.length > 0) {
     html += `
       <div class="divider">랩별 페이스</div>
@@ -1663,19 +1700,175 @@ function renderActivityDetail(activity) {
     `;
   }
 
-  // 지도가 있으면 표시
-  if (activity.map && activity.map.summary_polyline) {
-    html += `
-      <div class="divider">경로</div>
-      <div id="activityMap" style="width: 100%; height: 400px; border-radius: 8px; overflow: hidden;"></div>
-    `;
-  }
-
   content.innerHTML = html;
+
+  // 차트 렌더링
+  if (activity.laps && activity.laps.length > 0) {
+    renderLapCharts(activity.laps);
+  }
 
   // 지도 렌더링
   if (activity.map && activity.map.summary_polyline) {
     renderActivityMap(activity.map.summary_polyline);
+  }
+}
+
+// 랩별 차트 렌더링
+function renderLapCharts(laps) {
+  const labels = laps.map((_, index) => `${index + 1}km`);
+
+  // 페이스 데이터 (초/km)
+  const paceData = laps.map(lap => {
+    const paceInSeconds = (lap.moving_time / (lap.distance / 1000));
+    return paceInSeconds;
+  });
+
+  // 심박수 데이터
+  const heartRateData = laps.map(lap => lap.average_heartrate || null);
+
+  // 케이던스 데이터 (spm으로 변환)
+  const cadenceData = laps.map(lap => lap.average_cadence ? lap.average_cadence * 2 : null);
+
+  // 차트 공통 옵션
+  const commonOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: false
+      }
+    },
+    scales: {
+      y: {
+        beginAtZero: false,
+        grid: {
+          color: 'rgba(0, 0, 0, 0.05)'
+        },
+        ticks: {
+          font: {
+            size: 10
+          }
+        }
+      },
+      x: {
+        grid: {
+          display: false
+        },
+        ticks: {
+          font: {
+            size: 10
+          }
+        }
+      }
+    }
+  };
+
+  // 페이스 차트
+  const paceCtx = document.getElementById('paceChart');
+  if (paceCtx) {
+    new Chart(paceCtx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: '페이스 (분/km)',
+          data: paceData,
+          borderColor: 'rgb(59, 130, 246)',
+          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          borderWidth: 2,
+          tension: 0.3,
+          fill: true
+        }]
+      },
+      options: {
+        ...commonOptions,
+        scales: {
+          ...commonOptions.scales,
+          y: {
+            ...commonOptions.scales.y,
+            reverse: true, // 페이스는 낮을수록 좋으므로 반전
+            ticks: {
+              ...commonOptions.scales.y.ticks,
+              callback: function(value) {
+                const minutes = Math.floor(value / 60);
+                const seconds = Math.round(value % 60);
+                return `${minutes}:${String(seconds).padStart(2, '0')}`;
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // 심박수 차트
+  const hrCtx = document.getElementById('heartRateChart');
+  if (hrCtx && heartRateData.some(v => v !== null)) {
+    new Chart(hrCtx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: '심박수 (bpm)',
+          data: heartRateData,
+          borderColor: 'rgb(239, 68, 68)',
+          backgroundColor: 'rgba(239, 68, 68, 0.1)',
+          borderWidth: 2,
+          tension: 0.3,
+          fill: true
+        }]
+      },
+      options: {
+        ...commonOptions,
+        scales: {
+          ...commonOptions.scales,
+          y: {
+            ...commonOptions.scales.y,
+            ticks: {
+              ...commonOptions.scales.y.ticks,
+              callback: function(value) {
+                return value + ' bpm';
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // 케이던스 차트
+  const cadenceCtx = document.getElementById('cadenceChart');
+  if (cadenceCtx && cadenceData.some(v => v !== null)) {
+    new Chart(cadenceCtx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: '케이던스 (spm)',
+          data: cadenceData,
+          borderColor: 'rgb(34, 197, 94)',
+          backgroundColor: 'rgba(34, 197, 94, 0.1)',
+          borderWidth: 2,
+          tension: 0.3,
+          fill: true
+        }]
+      },
+      options: {
+        ...commonOptions,
+        scales: {
+          ...commonOptions.scales,
+          y: {
+            ...commonOptions.scales.y,
+            ticks: {
+              ...commonOptions.scales.y.ticks,
+              callback: function(value) {
+                return value + ' spm';
+              }
+            }
+          }
+        }
+      }
+    });
   }
 }
 
@@ -1710,17 +1903,17 @@ function decodePolyline(encoded) {
   return poly;
 }
 
-// 지도에 경로 표시 (Leaflet 사용)
+// 지도에 경로 표시 (Mapbox 사용)
 function renderActivityMap(polyline) {
-  // Leaflet이 로드되어 있지 않으면 스크립트 로드
-  if (typeof L === 'undefined') {
+  // Mapbox GL JS가 로드되어 있지 않으면 스크립트 로드
+  if (typeof mapboxgl === 'undefined') {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+    link.href = 'https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css';
     document.head.appendChild(link);
 
     const script = document.createElement('script');
-    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    script.src = 'https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js';
     script.onload = () => initMap(polyline);
     document.head.appendChild(script);
   } else {
@@ -1730,7 +1923,7 @@ function renderActivityMap(polyline) {
 
 function initMap(polyline) {
   setTimeout(() => {
-    const coords = decodePolyline(polyline);
+    const coords = decodePolyline(polyline); // [lat, lng] 형태
 
     if (coords.length === 0) return;
 
@@ -1740,26 +1933,70 @@ function initMap(polyline) {
 
     mapContainer.innerHTML = '';
 
+    // Mapbox access token 설정 (공개 토큰 - 나중에 환경변수로 변경 권장)
+    mapboxgl.accessToken = 'pk.eyJ1Ijoic29uZ2p1bmhhIiwiYSI6ImNtZ2VmdW91MTE4Z3cybXBuenZodndpeWcifQ.Tbwc9pYGsVb5IXsh8uJu_g';
+
+    // [lng, lat] 형태로 변환
+    const lngLatCoords = coords.map(c => [c[1], c[0]]);
+
+    // bounds 계산
+    const bounds = new mapboxgl.LngLatBounds();
+    lngLatCoords.forEach(coord => bounds.extend(coord));
+
+    const center = bounds.getCenter();
+
     // 지도 생성
-    const map = L.map('activityMap');
+    const map = new mapboxgl.Map({
+      container: 'activityMap',
+      style: 'mapbox://styles/mapbox/outdoors-v12',
+      center: [center.lng, center.lat],
+      zoom: 13
+    });
 
-    // OpenStreetMap 타일 추가
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors'
-    }).addTo(map);
+    map.on('load', () => {
+      // 경로 데이터 추가
+      map.addSource('route', {
+        type: 'geojson',
+        data: {
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'LineString',
+            coordinates: lngLatCoords
+          }
+        }
+      });
 
-    // 경로 폴리라인 추가
-    const polylineLayer = L.polyline(coords, {
-      color: '#FF6B6B',
-      weight: 4,
-      opacity: 0.8
-    }).addTo(map);
+      // 경로 레이어 추가
+      map.addLayer({
+        id: 'route',
+        type: 'line',
+        source: 'route',
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round'
+        },
+        paint: {
+          'line-color': '#FC4C02',
+          'line-width': 4,
+          'line-opacity': 0.9
+        }
+      });
 
-    // 시작점과 끝점 마커 추가
-    L.marker(coords[0]).addTo(map).bindPopup('시작');
-    L.marker(coords[coords.length - 1]).addTo(map).bindPopup('종료');
+      // 시작점 마커
+      new mapboxgl.Marker({ color: '#22c55e' })
+        .setLngLat(lngLatCoords[0])
+        .setPopup(new mapboxgl.Popup().setHTML('<strong>시작</strong>'))
+        .addTo(map);
 
-    // 경로에 맞게 지도 확대/축소
-    map.fitBounds(polylineLayer.getBounds(), { padding: [20, 20] });
+      // 종료점 마커
+      new mapboxgl.Marker({ color: '#ef4444' })
+        .setLngLat(lngLatCoords[lngLatCoords.length - 1])
+        .setPopup(new mapboxgl.Popup().setHTML('<strong>종료</strong>'))
+        .addTo(map);
+
+      // 경로에 맞게 지도 확대/축소
+      map.fitBounds(bounds, { padding: 40 });
+    });
   }, 100);
 }

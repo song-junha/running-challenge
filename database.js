@@ -352,6 +352,7 @@ const activityQueries = {
     for (const dist of distances) {
       const record = await getQuery(`
         SELECT
+          activity_id,
           name,
           distance,
           moving_time,
