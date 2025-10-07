@@ -478,10 +478,7 @@ async function fetchAllActivities(accessToken, after) {
       allActivities = allActivities.concat(activities);
       page++;
 
-      // Rate limit 방지: 200개씩 가져온 후 잠시 대기
-      if (activities.length === 200) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      } else {
+      if (activities.length < 200) {
         hasMore = false;
       }
     }
