@@ -333,16 +333,22 @@ const activityQueries = {
     `, [strava_id]);
   },
 
-  // 최근 활동 조회 (모든 사용자)
+  // 최근 활동 조회 (모든 사용자, 최근 1년)
   getRecentActivities: async (limit, offset = 0) => {
+    // 1년 전 날짜 계산
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+    const oneYearAgoStr = oneYearAgo.toISOString();
+
     return await allQuery(`
       SELECT a.*,
         COALESCE(u.nickname, u.name) as user_name
       FROM activities a
       JOIN users u ON a.user_id = u.id
+      WHERE a.start_date >= ?
       ORDER BY a.start_date DESC
       LIMIT ? OFFSET ?
-    `, [limit, offset]);
+    `, [oneYearAgoStr, limit, offset]);
   },
 
   // 기간별 통계
