@@ -14,6 +14,16 @@ app.use(express.static('public'));
 // 데이터베이스 초기화 (비동기)
 initDatabase();
 
+// 비밀번호 검증 함수
+function verifyAdminPassword(password) {
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  if (!adminPassword) {
+    console.warn('⚠️  ADMIN_PASSWORD가 설정되지 않았습니다');
+    return false;
+  }
+  return password === adminPassword;
+}
+
 // ============= API 라우트 =============
 
 // 모든 사용자 조회
@@ -55,6 +65,12 @@ app.post('/api/users', async (req, res) => {
 app.delete('/api/users/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const { password } = req.body;
+
+    if (!verifyAdminPassword(password)) {
+      return res.status(403).json({ error: '관리자 비밀번호가 일치하지 않습니다' });
+    }
+
     await userQueries.deleteUser(id);
     res.json({ success: true, message: '사용자가 삭제되었습니다' });
   } catch (error) {
@@ -66,10 +82,15 @@ app.delete('/api/users/:id', async (req, res) => {
 app.put('/api/users/:id/nickname', async (req, res) => {
   try {
     const { id } = req.params;
-    const { nickname } = req.body;
+    const { nickname, password } = req.body;
 
     if (!nickname) {
       return res.status(400).json({ error: '닉네임은 필수입니다' });
+    }
+
+    // password가 제공된 경우에만 검증 (다른 사용자 수정 시)
+    if (password && !verifyAdminPassword(password)) {
+      return res.status(403).json({ error: '관리자 비밀번호가 일치하지 않습니다' });
     }
 
     // 닉네임 업데이트
@@ -366,10 +387,14 @@ app.post('/api/competitions', async (req, res) => {
 app.put('/api/competitions/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { date, name, participants } = req.body;
+    const { date, name, participants, password } = req.body;
 
     if (!date || !name) {
       return res.status(400).json({ error: '날짜와 대회명은 필수입니다' });
+    }
+
+    if (!verifyAdminPassword(password)) {
+      return res.status(403).json({ error: '관리자 비밀번호가 일치하지 않습니다' });
     }
 
     await competitionQueries.updateCompetition(id, date, name, participants || []);
@@ -390,6 +415,12 @@ app.put('/api/competitions/:id', async (req, res) => {
 app.delete('/api/competitions/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const { password } = req.body;
+
+    if (!verifyAdminPassword(password)) {
+      return res.status(403).json({ error: '관리자 비밀번호가 일치하지 않습니다' });
+    }
+
     await competitionQueries.deleteCompetition(id);
     res.json({ success: true, message: '대회가 삭제되었습니다' });
   } catch (error) {

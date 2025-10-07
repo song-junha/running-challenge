@@ -1041,18 +1041,25 @@ async function saveCompetition() {
   try {
     let response;
     if (currentEditingCompetitionId) {
-      // 수정 모드
+      // 수정 모드 - 비밀번호 필요
+      const password = prompt('관리자 비밀번호를 입력하세요:');
+      if (!password) {
+        showMessage('비밀번호를 입력해야 합니다', 'error');
+        return;
+      }
+
       response = await fetch(`/api/competitions/${currentEditingCompetitionId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           date: formattedDate,
           name: name,
-          participants: participants
+          participants: participants,
+          password: password
         })
       });
     } else {
-      // 등록 모드
+      // 등록 모드 - 비밀번호 불필요
       response = await fetch('/api/competitions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1090,9 +1097,18 @@ async function deleteCompetition() {
     return;
   }
 
+  // 관리자 비밀번호 입력
+  const password = prompt('관리자 비밀번호를 입력하세요:');
+  if (!password) {
+    showMessage('비밀번호를 입력해야 합니다', 'error');
+    return;
+  }
+
   try {
     const response = await fetch(`/api/competitions/${selectedCompetitionId}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: password })
     });
 
     const result = await response.json();
@@ -1410,10 +1426,22 @@ async function openUserModal(mode) {
     }
 
     try {
+      const requestBody = { nickname: newNickname.trim() };
+
+      // 다른 사용자 수정 시에만 비밀번호 필요 (관리자가 아니고 본인이 아닌 경우)
+      if (isAdmin() && !isOwnProfile(selectedUserId)) {
+        const password = prompt('관리자 비밀번호를 입력하세요:');
+        if (!password) {
+          showMessage('비밀번호를 입력해야 합니다', 'error');
+          return;
+        }
+        requestBody.password = password;
+      }
+
       const response = await fetch(`/api/users/${selectedUserId}/nickname`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nickname: newNickname.trim() })
+        body: JSON.stringify(requestBody)
       });
 
       const result = await response.json();
@@ -1450,9 +1478,18 @@ async function deleteUser() {
     return;
   }
 
+  // 관리자 비밀번호 입력
+  const password = prompt('관리자 비밀번호를 입력하세요:');
+  if (!password) {
+    showMessage('비밀번호를 입력해야 합니다', 'error');
+    return;
+  }
+
   try {
     const response = await fetch(`/api/users/${selectedUserId}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: password })
     });
 
     const result = await response.json();
