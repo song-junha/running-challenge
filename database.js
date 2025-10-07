@@ -333,22 +333,28 @@ const activityQueries = {
     `, [strava_id]);
   },
 
-  // 최근 활동 조회 (모든 사용자, 최근 1년)
-  getRecentActivities: async (limit, offset = 0) => {
+  // 최근 활동 조회 (각 사용자별 최근 30개, 전체 최신 200개)
+  getRecentActivities: async () => {
     // 1년 전 날짜 계산
     const oneYearAgo = new Date();
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
     const oneYearAgoStr = oneYearAgo.toISOString();
 
     return await allQuery(`
-      SELECT a.*,
-        COALESCE(u.nickname, u.name) as user_name
-      FROM activities a
-      JOIN users u ON a.user_id = u.id
-      WHERE a.start_date >= ?
-      ORDER BY a.start_date DESC
-      LIMIT ? OFFSET ?
-    `, [oneYearAgoStr, limit, offset]);
+      WITH ranked_activities AS (
+        SELECT a.*,
+          COALESCE(u.nickname, u.name) as user_name,
+          ROW_NUMBER() OVER (PARTITION BY a.user_id ORDER BY a.start_date DESC) as rn
+        FROM activities a
+        JOIN users u ON a.user_id = u.id
+        WHERE a.start_date >= ?
+      )
+      SELECT *
+      FROM ranked_activities
+      WHERE rn <= 30
+      ORDER BY start_date DESC
+      LIMIT 200
+    `, [oneYearAgoStr]);
   },
 
   // 기간별 통계
@@ -531,6 +537,14 @@ const competitionQueries = {
     return await runQuery(
       'UPDATE competition_participants SET activity_id = ?, result = ? WHERE id = ?',
       [activityId, result, participantId]
+    );
+  },
+
+  // strava_id로 참가자 이름 업데이트
+  updateParticipantNameByStravaId: async (stravaId, newName) => {
+    return await runQuery(
+      'UPDATE competition_participants SET name = ? WHERE strava_id = ?',
+      [newName, stravaId]
     );
   }
 };

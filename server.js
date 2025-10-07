@@ -72,7 +72,17 @@ app.put('/api/users/:id/nickname', async (req, res) => {
       return res.status(400).json({ error: '닉네임은 필수입니다' });
     }
 
+    // 닉네임 업데이트
     await userQueries.updateNickname(id, nickname);
+
+    // 해당 사용자의 strava_id 조회
+    const user = await userQueries.getUser(id);
+
+    // 대회 참가자 이름도 업데이트 (strava_id가 있는 경우)
+    if (user && user.strava_id) {
+      await competitionQueries.updateParticipantNameByStravaId(user.strava_id, nickname);
+    }
+
     res.json({ success: true, message: '닉네임이 수정되었습니다' });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -82,9 +92,7 @@ app.put('/api/users/:id/nickname', async (req, res) => {
 // 최근 활동 조회
 app.get('/api/activities/recent', async (req, res) => {
   try {
-    const limit = parseInt(req.query.limit) || 30;
-    const offset = parseInt(req.query.offset) || 0;
-    const activities = await activityQueries.getRecentActivities(limit, offset);
+    const activities = await activityQueries.getRecentActivities();
     res.json(activities);
   } catch (error) {
     res.status(500).json({ error: error.message });

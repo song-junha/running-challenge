@@ -9,22 +9,17 @@ let competitionFilter = 'future'; // 대회 필터 상태
 let competitionsCache = []; // 대회 데이터 캐시
 let competitionSearchQuery = ''; // 대회 검색어
 
-// 활동 무한 스크롤 관련
-let activitiesOffset = 0;
-let activitiesLoading = false;
-let activitiesHasMore = true;
 
 // 페이지 로드 시 실행
 document.addEventListener('DOMContentLoaded', () => {
   checkConnectionStatus();
   loadStats();
-  loadActivities(true);
+  loadActivities();
   setupPeriodSelector();
   setupStravaButtons();
   setupNavigation();
   loadCompetitions();
   loadUsers();
-  setupActivityScroll();
 });
 
 // 기간 선택 버튼 설정
@@ -163,53 +158,32 @@ async function loadStats() {
   }
 }
 
-// 최근 활동 로드
-async function loadActivities(reset = false) {
+// 최근 활동 로드 (사용자별 최근 30개, 전체 최신 200개)
+async function loadActivities() {
   const activitiesContainer = document.getElementById('activities');
-
-  // 초기화 모드
-  if (reset) {
-    activitiesOffset = 0;
-    activitiesHasMore = true;
-    activitiesContainer.innerHTML = '<div class="flex justify-center py-8"><span class="loading loading-dots loading-lg text-primary"></span></div>';
-  }
-
-  // 이미 로딩 중이거나 더 이상 데이터가 없으면 중단
-  if (activitiesLoading || !activitiesHasMore) return;
-
-  activitiesLoading = true;
+  activitiesContainer.innerHTML = '<div class="flex justify-center py-8"><span class="loading loading-dots loading-lg text-primary"></span></div>';
 
   try {
-    const response = await fetch(`/api/activities/recent?limit=30&offset=${activitiesOffset}`);
+    const response = await fetch('/api/activities/recent');
     const activities = await response.json();
 
-    // 더 이상 데이터가 없는 경우
     if (activities.length === 0) {
-      activitiesHasMore = false;
-      if (activitiesOffset === 0) {
-        activitiesContainer.innerHTML = `
-          <div class="alert alert-info shadow-lg">
+      activitiesContainer.innerHTML = `
+        <div class="alert alert-info shadow-lg">
+          <div>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current flex-shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
             <div>
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current flex-shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-              <div>
-                <h3 class="font-bold">😴 아직 활동이 없습니다</h3>
-                <div class="text-xs">첫 러닝을 시작해보세요!</div>
-              </div>
+              <h3 class="font-bold">😴 아직 활동이 없습니다</h3>
+              <div class="text-xs">첫 러닝을 시작해보세요!</div>
             </div>
           </div>
-        `;
-      }
-      activitiesLoading = false;
+        </div>
+      `;
       return;
     }
 
-    // 30개 미만이면 마지막 페이지
-    if (activities.length < 30) {
-      activitiesHasMore = false;
-    }
-
     // 활동 목록 생성
-    const activitiesHTML = activities.map(activity => {
+    activitiesContainer.innerHTML = activities.map(activity => {
       const distance = (activity.distance / 1000).toFixed(2);
       const time = formatTime(activity.moving_time);
       const pace = calculatePace(activity.distance, activity.moving_time);
@@ -283,29 +257,16 @@ async function loadActivities(reset = false) {
       `;
     }).join('');
 
-    // 초기 로드면 덮어쓰기, 아니면 추가
-    if (reset || activitiesOffset === 0) {
-      activitiesContainer.innerHTML = activitiesHTML;
-    } else {
-      activitiesContainer.innerHTML += activitiesHTML;
-    }
-
-    activitiesOffset += activities.length;
-    activitiesLoading = false;
-
   } catch (error) {
     console.error('활동 로드 실패:', error);
-    if (activitiesOffset === 0) {
-      activitiesContainer.innerHTML = `
-        <div class="alert alert-error shadow-lg">
-          <div>
-            <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current flex-shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            <span>활동을 불러올 수 없습니다</span>
-          </div>
+    activitiesContainer.innerHTML = `
+      <div class="alert alert-error shadow-lg">
+        <div>
+          <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current flex-shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          <span>활동을 불러올 수 없습니다</span>
         </div>
-      `;
-    }
-    activitiesLoading = false;
+      </div>
+    `;
   }
 }
 
@@ -434,7 +395,7 @@ function setupStravaButtons() {
         showMessage(result.message, 'success');
         // 데이터 새로고침
         loadStats();
-        loadActivities(true);
+        loadActivities();
       } else {
         showMessage('동기화 실패: ' + result.error, 'error');
       }
@@ -602,47 +563,6 @@ function setupNavigation() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
   });
-}
-
-// 활동 페이지 무한 스크롤 설정
-function setupActivityScroll() {
-  let scrollTimeout;
-
-  const handleScroll = () => {
-    // 활동 페이지가 아니면 무시
-    const activityPage = document.getElementById('activityPage');
-    if (activityPage.classList.contains('hidden')) return;
-
-    // 페이지 하단에 가까워지면 추가 로드
-    const scrollPosition = window.innerHeight + window.scrollY;
-    const pageHeight = Math.max(
-      document.documentElement.scrollHeight,
-      document.body.scrollHeight
-    );
-
-    // 300px 전에 로드 시작
-    if (scrollPosition >= pageHeight - 300) {
-      loadActivities();
-    }
-  };
-
-  // 스크롤 이벤트 throttling
-  window.addEventListener('scroll', () => {
-    if (scrollTimeout) return;
-    scrollTimeout = setTimeout(() => {
-      handleScroll();
-      scrollTimeout = null;
-    }, 100);
-  }, { passive: true });
-
-  // 터치 스크롤도 감지 (모바일)
-  window.addEventListener('touchmove', () => {
-    if (scrollTimeout) return;
-    scrollTimeout = setTimeout(() => {
-      handleScroll();
-      scrollTimeout = null;
-    }, 100);
-  }, { passive: true });
 }
 
 // 대회 필터 변경
@@ -1502,7 +1422,7 @@ async function openUserModal(mode) {
         showMessage('닉네임이 수정되었습니다', 'success');
         loadUsers(); // 목록 새로고침
         loadStats(); // 통계도 새로고침
-        loadActivities(true); // 활동도 새로고침
+        loadActivities(); // 활동도 새로고침
       } else {
         showMessage('닉네임 수정 실패: ' + (result.error || '알 수 없는 오류'), 'error');
       }
