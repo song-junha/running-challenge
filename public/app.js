@@ -606,19 +606,43 @@ function setupNavigation() {
 
 // 활동 페이지 무한 스크롤 설정
 function setupActivityScroll() {
-  window.addEventListener('scroll', () => {
+  let scrollTimeout;
+
+  const handleScroll = () => {
     // 활동 페이지가 아니면 무시
     const activityPage = document.getElementById('activityPage');
     if (activityPage.classList.contains('hidden')) return;
 
     // 페이지 하단에 가까워지면 추가 로드
     const scrollPosition = window.innerHeight + window.scrollY;
-    const pageHeight = document.documentElement.scrollHeight;
+    const pageHeight = Math.max(
+      document.documentElement.scrollHeight,
+      document.body.scrollHeight
+    );
 
-    if (scrollPosition >= pageHeight - 500) {
+    // 300px 전에 로드 시작
+    if (scrollPosition >= pageHeight - 300) {
       loadActivities();
     }
-  });
+  };
+
+  // 스크롤 이벤트 throttling
+  window.addEventListener('scroll', () => {
+    if (scrollTimeout) return;
+    scrollTimeout = setTimeout(() => {
+      handleScroll();
+      scrollTimeout = null;
+    }, 100);
+  }, { passive: true });
+
+  // 터치 스크롤도 감지 (모바일)
+  window.addEventListener('touchmove', () => {
+    if (scrollTimeout) return;
+    scrollTimeout = setTimeout(() => {
+      handleScroll();
+      scrollTimeout = null;
+    }, 100);
+  }, { passive: true });
 }
 
 // 대회 필터 변경
