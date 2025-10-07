@@ -1170,40 +1170,12 @@ async function joinCompetition(competitionId) {
   const selectedCategory = categories[categoryIndex];
 
   try {
-    // 대회 정보 가져오기
-    const compResponse = await fetch(`/api/competitions`);
-    const competitions = await compResponse.json();
-    const competition = competitions.find(c => c.id === competitionId);
-
-    if (!competition) {
-      showMessage('대회를 찾을 수 없습니다', 'error');
-      return;
-    }
-
-    // 참가자 추가
-    const participants = competition.participants || [];
-    const userName = currentUser.nickname || currentUser.name;
-
-    // 이미 참가했는지 확인 (strava_id로 확인)
-    if (participants.some(p => p.strava_id === currentUser.strava_id)) {
-      showMessage('이미 참가한 대회입니다', 'error');
-      return;
-    }
-
-    participants.push({
-      name: userName,
-      category: selectedCategory,
-      strava_id: currentUser.strava_id
-    });
-
-    // 대회 업데이트
-    const response = await fetch(`/api/competitions/${competitionId}`, {
-      method: 'PUT',
+    const response = await fetch(`/api/competitions/${competitionId}/join`, {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        date: competition.date,
-        name: competition.name,
-        participants: participants
+        userId: currentUserId,
+        category: selectedCategory
       })
     });
 
@@ -1233,27 +1205,11 @@ async function leaveCompetition(competitionId) {
   }
 
   try {
-    // 대회 정보 가져오기
-    const compResponse = await fetch(`/api/competitions`);
-    const competitions = await compResponse.json();
-    const competition = competitions.find(c => c.id === competitionId);
-
-    if (!competition) {
-      showMessage('대회를 찾을 수 없습니다', 'error');
-      return;
-    }
-
-    // 참가자 목록에서 현재 사용자 제거
-    const participants = competition.participants.filter(p => p.strava_id !== currentUser.strava_id);
-
-    // 대회 업데이트
-    const response = await fetch(`/api/competitions/${competitionId}`, {
-      method: 'PUT',
+    const response = await fetch(`/api/competitions/${competitionId}/leave`, {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        date: competition.date,
-        name: competition.name,
-        participants: participants
+        userId: currentUserId
       })
     });
 

@@ -428,6 +428,98 @@ app.delete('/api/competitions/:id', async (req, res) => {
   }
 });
 
+// 대회 참가
+app.post('/api/competitions/:id/join', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId, category } = req.body;
+
+    if (!userId || !category) {
+      return res.status(400).json({ error: '사용자 ID와 종목은 필수입니다' });
+    }
+
+    // 사용자 정보 조회
+    const user = await userQueries.getUser(userId);
+    if (!user) {
+      return res.status(404).json({ error: '사용자를 찾을 수 없습니다' });
+    }
+
+    // 대회 정보 조회
+    const competition = await competitionQueries.getCompetition(id);
+    if (!competition) {
+      return res.status(404).json({ error: '대회를 찾을 수 없습니다' });
+    }
+
+    const participants = competition.participants || [];
+    const userName = user.nickname || user.name;
+
+    // 이미 참가했는지 확인
+    if (participants.some(p => p.strava_id === user.strava_id)) {
+      return res.status(400).json({ error: '이미 참가한 대회입니다' });
+    }
+
+    // 참가자 추가
+    participants.push({
+      name: userName,
+      category: category,
+      strava_id: user.strava_id
+    });
+
+    // 대회 업데이트
+    await competitionQueries.updateCompetition(id, competition.date, competition.name, participants);
+
+    // 결과 자동 검색
+    const updatedCompetition = await competitionQueries.getCompetition(id);
+    if (updatedCompetition) {
+      await findAndUpdateParticipantResults(updatedCompetition);
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 대회 참가 취소
+app.post('/api/competitions/:id/leave', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ error: '사용자 ID는 필수입니다' });
+    }
+
+    // 사용자 정보 조회
+    const user = await userQueries.getUser(userId);
+    if (!user) {
+      return res.status(404).json({ error: '사용자를 찾을 수 없습니다' });
+    }
+
+    // 대회 정보 조회
+    const competition = await competitionQueries.getCompetition(id);
+    if (!competition) {
+      return res.status(404).json({ error: '대회를 찾을 수 없습니다' });
+    }
+
+    const participants = competition.participants || [];
+
+    // 참가자 제거
+    const updatedParticipants = participants.filter(p => p.strava_id !== user.strava_id);
+
+    if (updatedParticipants.length === participants.length) {
+      return res.status(400).json({ error: '참가하지 않은 대회입니다' });
+    }
+
+    // 대회 업데이트
+    await competitionQueries.updateCompetition(id, competition.date, competition.name, updatedParticipants);
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ============= Strava OAuth =============
 
 // Strava API 헬퍼 함수들
