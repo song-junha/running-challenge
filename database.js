@@ -100,6 +100,52 @@ async function initDatabase() {
       }
     }
 
+    // AI 분석용 추가 필드
+    try {
+      await runQuery(`ALTER TABLE activities ADD COLUMN average_temp REAL`);
+      console.log('✅ average_temp 컬럼 추가 완료');
+    } catch (error) {
+      if (!error.message.includes('duplicate column name')) {
+        console.error('❌ average_temp 컬럼 추가 실패:', error.message);
+      }
+    }
+
+    try {
+      await runQuery(`ALTER TABLE activities ADD COLUMN calories REAL`);
+      console.log('✅ calories 컬럼 추가 완료');
+    } catch (error) {
+      if (!error.message.includes('duplicate column name')) {
+        console.error('❌ calories 컬럼 추가 실패:', error.message);
+      }
+    }
+
+    try {
+      await runQuery(`ALTER TABLE activities ADD COLUMN max_heartrate REAL`);
+      console.log('✅ max_heartrate 컬럼 추가 완료');
+    } catch (error) {
+      if (!error.message.includes('duplicate column name')) {
+        console.error('❌ max_heartrate 컬럼 추가 실패:', error.message);
+      }
+    }
+
+    try {
+      await runQuery(`ALTER TABLE activities ADD COLUMN suffer_score REAL`);
+      console.log('✅ suffer_score 컬럼 추가 완료');
+    } catch (error) {
+      if (!error.message.includes('duplicate column name')) {
+        console.error('❌ suffer_score 컬럼 추가 실패:', error.message);
+      }
+    }
+
+    try {
+      await runQuery(`ALTER TABLE activities ADD COLUMN workout_type INTEGER`);
+      console.log('✅ workout_type 컬럼 추가 완료');
+    } catch (error) {
+      if (!error.message.includes('duplicate column name')) {
+        console.error('❌ workout_type 컬럼 추가 실패:', error.message);
+      }
+    }
+
     // 대회 테이블
     await runQuery(`
       CREATE TABLE IF NOT EXISTS competitions (
@@ -234,13 +280,16 @@ const activityQueries = {
   // 활동 추가 (또는 업데이트)
   addActivity: async (user_id, activity_id, name, type, distance, moving_time,
                       elapsed_time, total_elevation_gain, start_date, average_speed, max_speed,
-                      average_heartrate = null, average_cadence = null) => {
+                      average_heartrate = null, average_cadence = null,
+                      average_temp = null, calories = null, max_heartrate = null,
+                      suffer_score = null, workout_type = null) => {
     return await runQuery(`
       INSERT INTO activities (
         user_id, activity_id, name, type, distance, moving_time,
         elapsed_time, total_elevation_gain, start_date, average_speed, max_speed,
-        average_heartrate, average_cadence
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        average_heartrate, average_cadence,
+        average_temp, calories, max_heartrate, suffer_score, workout_type
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(activity_id) DO UPDATE SET
         user_id = excluded.user_id,
         name = excluded.name,
@@ -253,10 +302,16 @@ const activityQueries = {
         average_speed = excluded.average_speed,
         max_speed = excluded.max_speed,
         average_heartrate = excluded.average_heartrate,
-        average_cadence = excluded.average_cadence
+        average_cadence = excluded.average_cadence,
+        average_temp = excluded.average_temp,
+        calories = excluded.calories,
+        max_heartrate = excluded.max_heartrate,
+        suffer_score = excluded.suffer_score,
+        workout_type = excluded.workout_type
     `, [user_id, activity_id, name, type, distance, moving_time,
         elapsed_time, total_elevation_gain, start_date, average_speed, max_speed,
-        average_heartrate, average_cadence]);
+        average_heartrate, average_cadence,
+        average_temp, calories, max_heartrate, suffer_score, workout_type]);
   },
 
   // 사용자의 모든 활동 조회
@@ -279,15 +334,15 @@ const activityQueries = {
   },
 
   // 최근 활동 조회 (모든 사용자)
-  getRecentActivities: async (limit) => {
+  getRecentActivities: async (limit, offset = 0) => {
     return await allQuery(`
       SELECT a.*,
         COALESCE(u.nickname, u.name) as user_name
       FROM activities a
       JOIN users u ON a.user_id = u.id
       ORDER BY a.start_date DESC
-      LIMIT ?
-    `, [limit]);
+      LIMIT ? OFFSET ?
+    `, [limit, offset]);
   },
 
   // 기간별 통계

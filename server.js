@@ -82,8 +82,9 @@ app.put('/api/users/:id/nickname', async (req, res) => {
 // 최근 활동 조회
 app.get('/api/activities/recent', async (req, res) => {
   try {
-    const limit = parseInt(req.query.limit) || 20;
-    const activities = await activityQueries.getRecentActivities(limit);
+    const limit = parseInt(req.query.limit) || 30;
+    const offset = parseInt(req.query.offset) || 0;
+    const activities = await activityQueries.getRecentActivities(limit, offset);
     res.json(activities);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -512,7 +513,12 @@ async function syncUserActivities(userId, months = null) {
           activity.average_speed,
           activity.max_speed,
           activity.average_heartrate || null,
-          activity.average_cadence || null
+          activity.average_cadence || null,
+          activity.average_temp || null,
+          activity.calories || null,
+          activity.max_heartrate || null,
+          activity.suffer_score || null,
+          activity.workout_type || null
         );
       })
     );
