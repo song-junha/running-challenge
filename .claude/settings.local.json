@@ -32,7 +32,13 @@
       "Bash(npm install:*)",
       "Bash(npm run build:css:*)",
       "Bash(git pull:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(psql:*)",
+      "Bash(brew services start:*)",
+      "Bash(/opt/homebrew/opt/postgresql@14/bin/createdb:*)",
+      "Bash(node migrate-to-postgres.js:*)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:Songjunha1!!@db.ktncexwhzgmncacoubcs.supabase.co:5432/postgres\" node:*)",
+      "Bash(DATABASE_URL=\"postgresql://postgres.ktncexwhzgmncacoubcs:Songjunha1!!@aws-1-ap-northeast-2.pooler.supabase.com:6543/postgres?pgbouncer=true\" node:*)"
     ],
     "deny": [],
     "ask": []
