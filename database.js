@@ -1,44 +1,44 @@
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
-const fs = require('fs');
+const { Pool } = require('pg');
 
-// 데이터베이스 파일 경로 (환경변수 우선, 없으면 로컬 경로)
-const dbPath = process.env.DB_PATH || path.join(__dirname, 'running.db');
-
-// DB 디렉토리가 없으면 생성
-const dbDir = path.dirname(dbPath);
-if (!fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir, { recursive: true });
-}
-
-const db = new sqlite3.Database(dbPath);
+// PostgreSQL 연결 설정
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+});
 
 // Promise 래퍼 함수들
-function runQuery(query, params = []) {
-  return new Promise((resolve, reject) => {
-    db.run(query, params, function(err) {
-      if (err) reject(err);
-      else resolve({ lastID: this.lastID, changes: this.changes });
-    });
-  });
+async function runQuery(query, params = []) {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(query, params);
+    return {
+      lastID: result.rows[0]?.id,
+      changes: result.rowCount,
+      rows: result.rows
+    };
+  } finally {
+    client.release();
+  }
 }
 
-function getQuery(query, params = []) {
-  return new Promise((resolve, reject) => {
-    db.get(query, params, (err, row) => {
-      if (err) reject(err);
-      else resolve(row);
-    });
-  });
+async function getQuery(query, params = []) {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(query, params);
+    return result.rows[0];
+  } finally {
+    client.release();
+  }
 }
 
-function allQuery(query, params = []) {
-  return new Promise((resolve, reject) => {
-    db.all(query, params, (err, rows) => {
-      if (err) reject(err);
-      else resolve(rows);
-    });
-  });
+async function allQuery(query, params = []) {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(query, params);
+    return result.rows;
+  } finally {
+    client.release();
+  }
 }
 
 // 데이터베이스 초기화
@@ -47,20 +47,21 @@ async function initDatabase() {
     // 사용자 테이블
     await runQuery(`
       CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         name TEXT NOT NULL,
         nickname TEXT,
         strava_id TEXT UNIQUE,
         access_token TEXT,
         refresh_token TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        full_sync_done INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
     // 활동 기록 테이블
     await runQuery(`
       CREATE TABLE IF NOT EXISTS activities (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL,
         activity_id TEXT UNIQUE,
         name TEXT,
@@ -69,149 +70,50 @@ async function initDatabase() {
         moving_time INTEGER,
         elapsed_time INTEGER,
         total_elevation_gain REAL,
-        start_date DATETIME,
+        start_date TIMESTAMP,
         average_speed REAL,
         max_speed REAL,
         average_heartrate REAL,
         average_cadence REAL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        average_temp REAL,
+        calories REAL,
+        max_heartrate REAL,
+        suffer_score REAL,
+        workout_type INTEGER,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users (id)
       )
     `);
 
-    // 기존 테이블에 컬럼 추가 (마이그레이션)
-    try {
-      await runQuery(`ALTER TABLE activities ADD COLUMN average_heartrate REAL`);
-      console.log('✅ average_heartrate 컬럼 추가 완료');
-    } catch (error) {
-      // 이미 존재하면 무시
-      if (!error.message.includes('duplicate column name')) {
-        console.error('❌ average_heartrate 컬럼 추가 실패:', error.message);
-      }
-    }
-
-    try {
-      await runQuery(`ALTER TABLE activities ADD COLUMN average_cadence REAL`);
-      console.log('✅ average_cadence 컬럼 추가 완료');
-    } catch (error) {
-      // 이미 존재하면 무시
-      if (!error.message.includes('duplicate column name')) {
-        console.error('❌ average_cadence 컬럼 추가 실패:', error.message);
-      }
-    }
-
-    // AI 분석용 추가 필드
-    try {
-      await runQuery(`ALTER TABLE activities ADD COLUMN average_temp REAL`);
-      console.log('✅ average_temp 컬럼 추가 완료');
-    } catch (error) {
-      if (!error.message.includes('duplicate column name')) {
-        console.error('❌ average_temp 컬럼 추가 실패:', error.message);
-      }
-    }
-
-    try {
-      await runQuery(`ALTER TABLE activities ADD COLUMN calories REAL`);
-      console.log('✅ calories 컬럼 추가 완료');
-    } catch (error) {
-      if (!error.message.includes('duplicate column name')) {
-        console.error('❌ calories 컬럼 추가 실패:', error.message);
-      }
-    }
-
-    try {
-      await runQuery(`ALTER TABLE activities ADD COLUMN max_heartrate REAL`);
-      console.log('✅ max_heartrate 컬럼 추가 완료');
-    } catch (error) {
-      if (!error.message.includes('duplicate column name')) {
-        console.error('❌ max_heartrate 컬럼 추가 실패:', error.message);
-      }
-    }
-
-    try {
-      await runQuery(`ALTER TABLE activities ADD COLUMN suffer_score REAL`);
-      console.log('✅ suffer_score 컬럼 추가 완료');
-    } catch (error) {
-      if (!error.message.includes('duplicate column name')) {
-        console.error('❌ suffer_score 컬럼 추가 실패:', error.message);
-      }
-    }
-
-    try {
-      await runQuery(`ALTER TABLE activities ADD COLUMN workout_type INTEGER`);
-      console.log('✅ workout_type 컬럼 추가 완료');
-    } catch (error) {
-      if (!error.message.includes('duplicate column name')) {
-        console.error('❌ workout_type 컬럼 추가 실패:', error.message);
-      }
-    }
-
     // 대회 테이블
     await runQuery(`
       CREATE TABLE IF NOT EXISTS competitions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         date TEXT NOT NULL,
         name TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
     // 대회 참가자 테이블
     await runQuery(`
       CREATE TABLE IF NOT EXISTS competition_participants (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         competition_id INTEGER NOT NULL,
         name TEXT NOT NULL,
         category TEXT NOT NULL,
         result TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        strava_id TEXT,
+        activity_id TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (competition_id) REFERENCES competitions (id) ON DELETE CASCADE
       )
     `);
 
-    // 기존 테이블에 result 컬럼 추가 (없는 경우)
-    try {
-      await runQuery(`ALTER TABLE competition_participants ADD COLUMN result TEXT`);
-      console.log('✅ competition_participants 테이블에 result 컬럼 추가됨');
-    } catch (err) {
-      // 컬럼이 이미 존재하는 경우 무시
-    }
-
-    // 기존 테이블에 nickname 컬럼 추가 (없는 경우)
-    try {
-      await runQuery(`ALTER TABLE users ADD COLUMN nickname TEXT`);
-      console.log('✅ users 테이블에 nickname 컬럼 추가됨');
-    } catch (err) {
-      // 컬럼이 이미 존재하는 경우 무시
-    }
-
-    // 기존 테이블에 strava_id 컬럼 추가 (없는 경우)
-    try {
-      await runQuery(`ALTER TABLE competition_participants ADD COLUMN strava_id TEXT`);
-      console.log('✅ competition_participants 테이블에 strava_id 컬럼 추가됨');
-    } catch (err) {
-      // 컬럼이 이미 존재하는 경우 무시
-    }
-
-    // 기존 테이블에 activity_id 컬럼 추가 (없는 경우)
-    try {
-      await runQuery(`ALTER TABLE competition_participants ADD COLUMN activity_id TEXT`);
-      console.log('✅ competition_participants 테이블에 activity_id 컬럼 추가됨');
-    } catch (err) {
-      // 컬럼이 이미 존재하는 경우 무시
-    }
-
-    // 기존 테이블에 full_sync_done 컬럼 추가 (없는 경우)
-    try {
-      await runQuery(`ALTER TABLE users ADD COLUMN full_sync_done INTEGER DEFAULT 0`);
-      console.log('✅ users 테이블에 full_sync_done 컬럼 추가됨');
-    } catch (err) {
-      // 컬럼이 이미 존재하는 경우 무시
-    }
-
     console.log('✅ 데이터베이스 초기화 완료');
   } catch (error) {
     console.error('❌ 데이터베이스 초기화 실패:', error);
+    throw error;
   }
 }
 
@@ -220,17 +122,18 @@ async function initDatabase() {
 const userQueries = {
   // 사용자 추가
   addUser: async (name, strava_id, access_token, refresh_token) => {
-    return await runQuery(
-      'INSERT INTO users (name, strava_id, access_token, refresh_token) VALUES (?, ?, ?, ?)',
+    const result = await runQuery(
+      'INSERT INTO users (name, strava_id, access_token, refresh_token) VALUES ($1, $2, $3, $4) RETURNING id',
       [name, strava_id, access_token, refresh_token]
     );
+    return { lastID: result.rows[0].id };
   },
 
   // 사용자 조회
   getUser: async (id) => {
-    return await getQuery('SELECT * FROM users WHERE id = ?', [id]);
+    return await getQuery('SELECT * FROM users WHERE id = $1', [id]);
   },
-  
+
   // 모든 사용자 조회
   getAllUsers: async () => {
     return await allQuery('SELECT id, name, nickname, strava_id, full_sync_done, created_at FROM users');
@@ -238,13 +141,13 @@ const userQueries = {
 
   // Strava ID로 사용자 찾기
   getUserByStravaId: async (strava_id) => {
-    return await getQuery('SELECT * FROM users WHERE strava_id = ?', [strava_id]);
+    return await getQuery('SELECT * FROM users WHERE strava_id = $1', [strava_id]);
   },
 
   // 토큰 업데이트
   updateTokens: async (id, access_token, refresh_token) => {
     return await runQuery(
-      'UPDATE users SET access_token = ?, refresh_token = ? WHERE id = ?',
+      'UPDATE users SET access_token = $1, refresh_token = $2 WHERE id = $3',
       [access_token, refresh_token, id]
     );
   },
@@ -252,15 +155,15 @@ const userQueries = {
   // 사용자 삭제 (활동도 함께 삭제)
   deleteUser: async (id) => {
     // 먼저 해당 사용자의 활동 삭제
-    await runQuery('DELETE FROM activities WHERE user_id = ?', [id]);
+    await runQuery('DELETE FROM activities WHERE user_id = $1', [id]);
     // 그 다음 사용자 삭제
-    return await runQuery('DELETE FROM users WHERE id = ?', [id]);
+    return await runQuery('DELETE FROM users WHERE id = $1', [id]);
   },
 
   // 닉네임 업데이트
   updateNickname: async (id, nickname) => {
     return await runQuery(
-      'UPDATE users SET nickname = ? WHERE id = ?',
+      'UPDATE users SET nickname = $1 WHERE id = $2',
       [nickname, id]
     );
   },
@@ -268,7 +171,7 @@ const userQueries = {
   // 전체 동기화 완료 플래그 업데이트
   updateFullSyncDone: async (id) => {
     return await runQuery(
-      'UPDATE users SET full_sync_done = 1 WHERE id = ?',
+      'UPDATE users SET full_sync_done = 1 WHERE id = $1',
       [id]
     );
   }
@@ -289,25 +192,26 @@ const activityQueries = {
         elapsed_time, total_elevation_gain, start_date, average_speed, max_speed,
         average_heartrate, average_cadence,
         average_temp, calories, max_heartrate, suffer_score, workout_type
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
       ON CONFLICT(activity_id) DO UPDATE SET
-        user_id = excluded.user_id,
-        name = excluded.name,
-        type = excluded.type,
-        distance = excluded.distance,
-        moving_time = excluded.moving_time,
-        elapsed_time = excluded.elapsed_time,
-        total_elevation_gain = excluded.total_elevation_gain,
-        start_date = excluded.start_date,
-        average_speed = excluded.average_speed,
-        max_speed = excluded.max_speed,
-        average_heartrate = excluded.average_heartrate,
-        average_cadence = excluded.average_cadence,
-        average_temp = excluded.average_temp,
-        calories = excluded.calories,
-        max_heartrate = excluded.max_heartrate,
-        suffer_score = excluded.suffer_score,
-        workout_type = excluded.workout_type
+        user_id = EXCLUDED.user_id,
+        name = EXCLUDED.name,
+        type = EXCLUDED.type,
+        distance = EXCLUDED.distance,
+        moving_time = EXCLUDED.moving_time,
+        elapsed_time = EXCLUDED.elapsed_time,
+        total_elevation_gain = EXCLUDED.total_elevation_gain,
+        start_date = EXCLUDED.start_date,
+        average_speed = EXCLUDED.average_speed,
+        max_speed = EXCLUDED.max_speed,
+        average_heartrate = EXCLUDED.average_heartrate,
+        average_cadence = EXCLUDED.average_cadence,
+        average_temp = EXCLUDED.average_temp,
+        calories = EXCLUDED.calories,
+        max_heartrate = EXCLUDED.max_heartrate,
+        suffer_score = EXCLUDED.suffer_score,
+        workout_type = EXCLUDED.workout_type
+      RETURNING id
     `, [user_id, activity_id, name, type, distance, moving_time,
         elapsed_time, total_elevation_gain, start_date, average_speed, max_speed,
         average_heartrate, average_cadence,
@@ -318,7 +222,7 @@ const activityQueries = {
   getUserActivities: async (user_id) => {
     return await allQuery(`
       SELECT * FROM activities
-      WHERE user_id = ?
+      WHERE user_id = $1
       ORDER BY start_date DESC
     `, [user_id]);
   },
@@ -328,7 +232,7 @@ const activityQueries = {
     return await allQuery(`
       SELECT a.* FROM activities a
       JOIN users u ON a.user_id = u.id
-      WHERE u.strava_id = ?
+      WHERE u.strava_id = $1
       ORDER BY a.start_date DESC
     `, [strava_id]);
   },
@@ -347,7 +251,7 @@ const activityQueries = {
           ROW_NUMBER() OVER (PARTITION BY a.user_id ORDER BY a.start_date DESC) as rn
         FROM activities a
         JOIN users u ON a.user_id = u.id
-        WHERE a.start_date >= ?
+        WHERE a.start_date >= $1
       )
       SELECT *
       FROM ranked_activities
@@ -371,7 +275,7 @@ const activityQueries = {
         AVG(a.average_cadence) as avg_cadence
       FROM users u
       LEFT JOIN activities a ON u.id = a.user_id
-      WHERE a.start_date >= ?
+      WHERE a.start_date >= $1
       GROUP BY u.id
       ORDER BY total_distance DESC
     `, [since]);
@@ -391,7 +295,7 @@ const activityQueries = {
         AVG(a.average_cadence) as avg_cadence
       FROM users u
       LEFT JOIN activities a ON u.id = a.user_id
-      WHERE a.start_date >= ? AND a.start_date <= ?
+      WHERE a.start_date >= $1 AND a.start_date <= $2
       GROUP BY u.id
       ORDER BY total_distance DESC
     `, [start, end]);
@@ -401,7 +305,7 @@ const activityQueries = {
   getActivityByActivityId: async (activity_id) => {
     return await getQuery(`
       SELECT * FROM activities
-      WHERE activity_id = ?
+      WHERE activity_id = $1
     `, [activity_id]);
   },
 
@@ -428,9 +332,9 @@ const activityQueries = {
           average_heartrate,
           average_cadence
         FROM activities
-        WHERE user_id = ?
-          AND distance >= ?
-          AND distance <= ?
+        WHERE user_id = $1
+          AND distance >= $2
+          AND distance <= $3
           AND type = 'Run'
         ORDER BY moving_time ASC
         LIMIT 1
@@ -448,17 +352,17 @@ const competitionQueries = {
   // 대회 추가
   addCompetition: async (date, name, participants = []) => {
     const result = await runQuery(
-      'INSERT INTO competitions (date, name) VALUES (?, ?)',
+      'INSERT INTO competitions (date, name) VALUES ($1, $2) RETURNING id',
       [date, name]
     );
 
-    const competitionId = result.lastID;
+    const competitionId = result.rows[0].id;
 
     // 참가자 추가
     if (participants.length > 0) {
       for (const participant of participants) {
         await runQuery(
-          'INSERT INTO competition_participants (competition_id, name, category, strava_id, result, activity_id) VALUES (?, ?, ?, ?, ?, ?)',
+          'INSERT INTO competition_participants (competition_id, name, category, strava_id, result, activity_id) VALUES ($1, $2, $3, $4, $5, $6)',
           [competitionId, participant.name, participant.category, participant.strava_id || null, participant.result || null, participant.activity_id || null]
         );
       }
@@ -479,7 +383,7 @@ const competitionQueries = {
       comp.participants = await allQuery(`
         SELECT id, name, category, result, strava_id, activity_id
         FROM competition_participants
-        WHERE competition_id = ?
+        WHERE competition_id = $1
         ORDER BY id ASC
       `, [comp.id]);
     }
@@ -490,7 +394,7 @@ const competitionQueries = {
   // 대회 조회
   getCompetition: async (id) => {
     const competition = await getQuery(
-      'SELECT * FROM competitions WHERE id = ?',
+      'SELECT * FROM competitions WHERE id = $1',
       [id]
     );
 
@@ -498,7 +402,7 @@ const competitionQueries = {
       competition.participants = await allQuery(`
         SELECT id, name, category, result, strava_id, activity_id
         FROM competition_participants
-        WHERE competition_id = ?
+        WHERE competition_id = $1
       `, [id]);
     }
 
@@ -508,16 +412,16 @@ const competitionQueries = {
   // 대회 수정
   updateCompetition: async (id, date, name, participants = []) => {
     await runQuery(
-      'UPDATE competitions SET date = ?, name = ? WHERE id = ?',
+      'UPDATE competitions SET date = $1, name = $2 WHERE id = $3',
       [date, name, id]
     );
 
     // 기존 참가자 삭제 후 새로 추가
-    await runQuery('DELETE FROM competition_participants WHERE competition_id = ?', [id]);
+    await runQuery('DELETE FROM competition_participants WHERE competition_id = $1', [id]);
 
     for (const participant of participants) {
       await runQuery(
-        'INSERT INTO competition_participants (competition_id, name, category, strava_id, result, activity_id) VALUES (?, ?, ?, ?, ?, ?)',
+        'INSERT INTO competition_participants (competition_id, name, category, strava_id, result, activity_id) VALUES ($1, $2, $3, $4, $5, $6)',
         [id, participant.name, participant.category, participant.strava_id || null, participant.result || null, participant.activity_id || null]
       );
     }
@@ -528,14 +432,14 @@ const competitionQueries = {
   // 대회 삭제
   deleteCompetition: async (id) => {
     // CASCADE로 자동 삭제되지만 명시적으로 삭제
-    await runQuery('DELETE FROM competition_participants WHERE competition_id = ?', [id]);
-    return await runQuery('DELETE FROM competitions WHERE id = ?', [id]);
+    await runQuery('DELETE FROM competition_participants WHERE competition_id = $1', [id]);
+    return await runQuery('DELETE FROM competitions WHERE id = $1', [id]);
   },
 
   // 참가자 결과 업데이트
   updateParticipantResult: async (participantId, activityId, result) => {
     return await runQuery(
-      'UPDATE competition_participants SET activity_id = ?, result = ? WHERE id = ?',
+      'UPDATE competition_participants SET activity_id = $1, result = $2 WHERE id = $3',
       [activityId, result, participantId]
     );
   },
@@ -543,14 +447,14 @@ const competitionQueries = {
   // strava_id로 참가자 이름 업데이트
   updateParticipantNameByStravaId: async (stravaId, newName) => {
     return await runQuery(
-      'UPDATE competition_participants SET name = ? WHERE strava_id = ?',
+      'UPDATE competition_participants SET name = $1 WHERE strava_id = $2',
       [newName, stravaId]
     );
   }
 };
 
 module.exports = {
-  db,
+  pool,
   initDatabase,
   userQueries,
   activityQueries,
