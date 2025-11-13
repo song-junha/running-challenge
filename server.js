@@ -619,6 +619,35 @@ app.delete('/api/challenges/:id', async (req, res) => {
   }
 });
 
+// 챌린지 기간 내 참가자 활동 조회
+app.get('/api/challenges/:id/user/:userId/activities', async (req, res) => {
+  try {
+    const { id, userId } = req.params;
+
+    // 챌린지 정보 조회
+    const challenge = await challengeQueries.getChallenge(id);
+    if (!challenge) {
+      return res.status(404).json({ error: '챌린지를 찾을 수 없습니다' });
+    }
+
+    // 사용자 활동 조회
+    const activities = await activityQueries.getUserActivities(userId);
+
+    // 챌린지 기간 내 활동만 필터링
+    const startDate = new Date(challenge.start_date);
+    const endDate = new Date(challenge.end_date + 'T23:59:59');
+
+    const filteredActivities = activities.filter(activity => {
+      const activityDate = new Date(activity.start_date);
+      return activityDate >= startDate && activityDate <= endDate && activity.type === 'Run';
+    });
+
+    res.json(filteredActivities);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ============= Strava OAuth =============
 
 // Strava API 헬퍼 함수들

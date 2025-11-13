@@ -2062,6 +2062,11 @@ async function loadChallengeProgress() {
     // 참가자 정렬: 달성률 높은 순
     participants.sort((a, b) => b.progress_percent - a.progress_percent);
 
+    // 남은 일수 계산
+    const today = new Date();
+    const endDate = new Date(currentChallenge.end_date + 'T23:59:59');
+    const daysLeft = Math.max(0, Math.ceil((endDate - today) / (1000 * 60 * 60 * 24)));
+
     let html = '';
     participants.forEach((participant, index) => {
       const rank = index + 1;
@@ -2069,9 +2074,12 @@ async function loadChallengeProgress() {
       const progressColor = participant.progress_percent >= 100 ? 'success' :
                            participant.progress_percent >= 70 ? 'warning' : 'error';
 
+      const remainingDistance = Math.max(0, participant.target_distance - participant.achieved_distance);
+      const dailyRequired = daysLeft > 0 ? (remainingDistance / daysLeft).toFixed(1) : 0;
+
       html += `
-        <div class="card bg-base-100 shadow-md border border-base-300">
-          <div class="card-body p-4">
+        <div class="card bg-base-100 shadow-md border border-base-300 participant-card" data-user-id="${participant.user_id}">
+          <div class="card-body p-4 cursor-pointer" onclick="toggleParticipantActivities(${participant.user_id})">
             <div class="flex items-center justify-between mb-3">
               <div class="flex items-center gap-3">
                 <span class="text-2xl font-bold">${medal}</span>
@@ -2092,7 +2100,16 @@ async function loadChallengeProgress() {
 
             <div class="flex justify-between mt-2 text-xs text-base-content/60">
               <span>활동 횟수: ${participant.activity_count}회</span>
-              <span>남은 거리: ${Math.max(0, participant.target_distance - participant.achieved_distance).toFixed(1)} km</span>
+              <span>남은 거리: ${remainingDistance.toFixed(1)} km (일일 ${dailyRequired} km)</span>
+            </div>
+          </div>
+
+          <!-- 활동 리스트 (접혀있음) -->
+          <div id="activities-${participant.user_id}" class="hidden px-4 pb-4">
+            <div class="divider my-0"></div>
+            <h4 class="font-semibold text-sm mb-2 mt-3">최근 활동</h4>
+            <div class="loading-container flex justify-center py-4">
+              <span class="loading loading-spinner loading-sm text-primary"></span>
             </div>
           </div>
         </div>
@@ -2173,4 +2190,110 @@ async function saveJoinChallenge() {
     console.error('챌린지 참가 실패:', error);
     alert('참가에 실패했습니다.');
   }
+}
+
+// 참가자 활동 토글
+let expandedParticipant = null;
+
+async function toggleParticipantActivities(userId) {
+  const activitiesDiv = document.getElementById(`activities-${userId}`);
+
+  // 이미 열려있으면 닫기
+  if (expandedParticipant === userId) {
+    activitiesDiv.classList.add('hidden');
+    expandedParticipant = null;
+    return;
+  }
+
+  // 다른 참가자가 열려있으면 닫기
+  if (expandedParticipant !== null) {
+    const prevActivitiesDiv = document.getElementById(`activities-${expandedParticipant}`);
+    if (prevActivitiesDiv) {
+      prevActivitiesDiv.classList.add('hidden');
+    }
+  }
+
+  // 현재 참가자 열기
+  activitiesDiv.classList.remove('hidden');
+  expandedParticipant = userId;
+
+  // 활동이 이미 로드되었는지 확인
+  if (!activitiesDiv.classList.contains('loaded')) {
+    try {
+      const response = await fetch(`/api/challenges/${currentChallenge.id}/user/${userId}/activities`);
+      const activities = await response.json();
+
+      if (activities.length === 0) {
+        activitiesDiv.innerHTML = `
+          <div class="divider my-0"></div>
+          <h4 class="font-semibold text-sm mb-2 mt-3">최근 활동</h4>
+          <p class="text-xs text-base-content/60 text-center py-4">챌린지 기간 내 활동이 없습니다.</p>
+        `;
+      } else {
+        // 활동 날짜 순으로 정렬 (최신순)
+        activities.sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
+
+        let html = `
+          <div class="divider my-0"></div>
+          <h4 class="font-semibold text-sm mb-2 mt-3">최근 활동 (${activities.length}개)</h4>
+          <div class="space-y-2">
+        `;
+
+        activities.forEach(activity => {
+          const date = new Date(activity.start_date);
+          const distance = (activity.distance / 1000).toFixed(2);
+          const duration = formatDuration(activity.moving_time);
+          const pace = formatPace(activity.distance, activity.moving_time);
+
+          html += `
+            <div class="bg-base-200 rounded p-2">
+              <div class="flex justify-between items-start">
+                <div class="flex-1">
+                  <p class="text-xs font-semibold">${activity.name || '러닝'}</p>
+                  <p class="text-xs text-base-content/60">${date.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} ${date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</p>
+                </div>
+                <div class="text-right">
+                  <p class="text-xs font-bold">${distance} km</p>
+                  <p class="text-xs text-base-content/60">${duration} · ${pace}</p>
+                </div>
+              </div>
+            </div>
+          `;
+        });
+
+        html += '</div>';
+        activitiesDiv.innerHTML = html;
+      }
+
+      activitiesDiv.classList.add('loaded');
+    } catch (error) {
+      console.error('활동 로드 실패:', error);
+      activitiesDiv.innerHTML = `
+        <div class="divider my-0"></div>
+        <h4 class="font-semibold text-sm mb-2 mt-3">최근 활동</h4>
+        <p class="text-xs text-error text-center py-4">활동을 불러오는데 실패했습니다.</p>
+      `;
+    }
+  }
+}
+
+// 시간 포맷팅 함수 (초 -> HH:MM:SS 또는 MM:SS)
+function formatDuration(seconds) {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  }
+  return `${minutes}:${String(secs).padStart(2, '0')}`;
+}
+
+// 페이스 포맷팅 (분:초/km)
+function formatPace(distance, time) {
+  if (distance === 0) return '-';
+  const paceSeconds = (time / (distance / 1000));
+  const minutes = Math.floor(paceSeconds / 60);
+  const seconds = Math.floor(paceSeconds % 60);
+  return `${minutes}:${String(seconds).padStart(2, '0')}/km`;
 }
