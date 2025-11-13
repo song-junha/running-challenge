@@ -2378,3 +2378,84 @@ function formatPace(distance, time) {
   const seconds = Math.floor(paceSeconds % 60);
   return `${minutes}:${String(seconds).padStart(2, '0')}/km`;
 }
+
+// 챌린지 참가자 활동 동기화
+async function syncChallengeActivities() {
+  if (!currentChallenge) {
+    alert('챌린지 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
+    return;
+  }
+
+  const syncBtn = document.getElementById('syncChallengeBtn');
+  const originalContent = syncBtn.innerHTML;
+
+  // 버튼 비활성화 및 로딩 상태로 변경
+  syncBtn.disabled = true;
+  syncBtn.innerHTML = `
+    <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+    </svg>
+    동기화 중...
+  `;
+
+  try {
+    // 참가자 목록 가져오기
+    const response = await fetch(`/api/challenges/${currentChallenge.id}/progress`);
+    const participants = await response.json();
+
+    if (participants.length === 0) {
+      alert('참가자가 없습니다.');
+      return;
+    }
+
+    let successCount = 0;
+    let failCount = 0;
+
+    // 각 참가자별로 동기화 (병렬 처리)
+    const syncPromises = participants.map(async (participant) => {
+      try {
+        const syncResponse = await fetch('/api/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: participant.user_id })
+        });
+
+        const result = await syncResponse.json();
+
+        if (result.success) {
+          successCount++;
+          return { success: true, userName: participant.user_name };
+        } else {
+          failCount++;
+          return { success: false, userName: participant.user_name, error: result.error };
+        }
+      } catch (error) {
+        failCount++;
+        return { success: false, userName: participant.user_name, error: error.message };
+      }
+    });
+
+    // 모든 동기화 완료 대기
+    const results = await Promise.all(syncPromises);
+
+    // 결과 메시지
+    let message = `동기화 완료!\n성공: ${successCount}명`;
+    if (failCount > 0) {
+      message += `\n실패: ${failCount}명`;
+    }
+
+    alert(message);
+
+    // 진행상황 새로고침
+    loadChallengeProgress();
+
+  } catch (error) {
+    console.error('동기화 실패:', error);
+    alert('동기화 중 오류가 발생했습니다.');
+  } finally {
+    // 버튼 원래 상태로 복원
+    syncBtn.disabled = false;
+    syncBtn.innerHTML = originalContent;
+  }
+}
