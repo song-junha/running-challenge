@@ -2117,6 +2117,9 @@ async function loadChallengeProgress() {
     });
 
     container.innerHTML = html;
+
+    // 참여 버튼 표시/숨김 결정
+    updateJoinButton(participants);
   } catch (error) {
     console.error('챌린지 진행상황 로드 실패:', error);
     container.innerHTML = `
@@ -2130,6 +2133,32 @@ async function loadChallengeProgress() {
   }
 }
 
+// 참여 버튼 표시/숨김 업데이트
+function updateJoinButton(participants) {
+  const joinBtn = document.getElementById('joinChallengeBtn');
+
+  if (!currentUser) {
+    joinBtn.style.display = 'none';
+    return;
+  }
+
+  // 관리자인 경우 항상 표시
+  const isAdmin = currentUser.strava_id === ADMIN_STRAVA_ID;
+  if (isAdmin) {
+    joinBtn.style.display = 'inline-flex';
+    return;
+  }
+
+  // 현재 사용자가 이미 참가했는지 확인
+  const hasJoined = participants.some(p => p.user_id === currentUser.id);
+
+  if (hasJoined) {
+    joinBtn.style.display = 'none';
+  } else {
+    joinBtn.style.display = 'inline-flex';
+  }
+}
+
 // 참가 모달 열기
 async function openJoinModal() {
   if (!currentUser) {
@@ -2138,11 +2167,47 @@ async function openJoinModal() {
   }
 
   const modal = document.getElementById('joinChallengeModal');
-  const userName = document.getElementById('joinUserName');
   const targetDistance = document.getElementById('targetDistance');
+  const isAdmin = currentUser.strava_id === ADMIN_STRAVA_ID;
 
-  userName.textContent = currentUser.nickname || currentUser.name;
   targetDistance.value = '';
+
+  // 관리자인 경우 사용자 선택 드롭다운 표시
+  if (isAdmin) {
+    try {
+      const response = await fetch('/api/users');
+      const users = await response.json();
+
+      const userSelectContainer = document.getElementById('userSelectContainer');
+      const userNameDisplay = document.getElementById('userNameDisplay');
+
+      userSelectContainer.classList.remove('hidden');
+      userNameDisplay.classList.add('hidden');
+
+      const userSelect = document.getElementById('userSelect');
+      userSelect.innerHTML = '<option value="">사용자를 선택하세요</option>';
+
+      users.forEach(user => {
+        const option = document.createElement('option');
+        option.value = user.id;
+        option.textContent = user.nickname || user.name;
+        userSelect.appendChild(option);
+      });
+    } catch (error) {
+      console.error('사용자 목록 로드 실패:', error);
+      alert('사용자 목록을 불러오는데 실패했습니다.');
+      return;
+    }
+  } else {
+    // 일반 사용자인 경우 본인 이름만 표시
+    const userSelectContainer = document.getElementById('userSelectContainer');
+    const userNameDisplay = document.getElementById('userNameDisplay');
+    const userName = document.getElementById('joinUserName');
+
+    userSelectContainer.classList.add('hidden');
+    userNameDisplay.classList.remove('hidden');
+    userName.textContent = currentUser.nickname || currentUser.name;
+  }
 
   modal.showModal();
 }
@@ -2167,12 +2232,28 @@ async function saveJoinChallenge() {
     return;
   }
 
+  // 관리자인 경우 선택한 사용자 ID 사용, 아니면 본인 ID 사용
+  const isAdmin = currentUser.strava_id === ADMIN_STRAVA_ID;
+  let selectedUserId;
+
+  if (isAdmin) {
+    const userSelect = document.getElementById('userSelect');
+    selectedUserId = userSelect.value;
+
+    if (!selectedUserId) {
+      alert('사용자를 선택해주세요.');
+      return;
+    }
+  } else {
+    selectedUserId = currentUser.id;
+  }
+
   try {
     const response = await fetch(`/api/challenges/${currentChallenge.id}/join`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        userId: currentUser.id,
+        userId: selectedUserId,
         targetDistance: parseFloat(targetDistance)
       })
     });
