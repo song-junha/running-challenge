@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupNavigation();
   loadCompetitions();
   loadUsers();
+  initChallenges();
 });
 
 // 기간 선택 버튼 설정
@@ -1997,4 +1998,179 @@ function initMap(polyline) {
       map.fitBounds(bounds, { padding: 40 });
     });
   }, 100);
+}
+
+// ============= 맞짱 챌린지 기능 =============
+
+let currentChallenge = null; // 현재 활성 챌린지
+
+// 챌린지 초기화
+async function initChallenges() {
+  try {
+    // "스시101 맞짱" 챌린지가 있는지 확인
+    const response = await fetch('/api/challenges');
+    const challenges = await response.json();
+
+    // 챌린지가 없으면 생성
+    if (challenges.length === 0) {
+      const createResponse = await fetch('/api/challenges', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: '스시101 맞짱',
+          start_date: '2025-11-07',
+          end_date: '2025-12-06'
+        })
+      });
+
+      const result = await createResponse.json();
+      currentChallenge = { id: result.id, name: '스시101 맞짱', start_date: '2025-11-07', end_date: '2025-12-06' };
+    } else {
+      // 가장 최근 챌린지 사용
+      currentChallenge = challenges[0];
+    }
+
+    loadChallengeProgress();
+  } catch (error) {
+    console.error('챌린지 초기화 실패:', error);
+  }
+}
+
+// 챌린지 진행상황 로드
+async function loadChallengeProgress() {
+  if (!currentChallenge) return;
+
+  const container = document.getElementById('challengeParticipants');
+  container.innerHTML = '<div class="flex justify-center py-8"><span class="loading loading-dots loading-lg text-primary"></span></div>';
+
+  try {
+    const response = await fetch(`/api/challenges/${currentChallenge.id}/progress`);
+    const participants = await response.json();
+
+    if (participants.length === 0) {
+      container.innerHTML = `
+        <div class="card bg-base-100 shadow-md border border-base-300">
+          <div class="card-body p-6 text-center">
+            <p class="text-base-content/60">아직 참가자가 없습니다.</p>
+            <p class="text-sm text-base-content/40 mt-2">참여 버튼을 눌러 챌린지에 참가하세요!</p>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    // 참가자 정렬: 달성률 높은 순
+    participants.sort((a, b) => b.progress_percent - a.progress_percent);
+
+    let html = '';
+    participants.forEach((participant, index) => {
+      const rank = index + 1;
+      const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `${rank}`;
+      const progressColor = participant.progress_percent >= 100 ? 'success' :
+                           participant.progress_percent >= 70 ? 'warning' : 'error';
+
+      html += `
+        <div class="card bg-base-100 shadow-md border border-base-300">
+          <div class="card-body p-4">
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center gap-3">
+                <span class="text-2xl font-bold">${medal}</span>
+                <div>
+                  <h3 class="font-bold text-lg">${participant.user_name}</h3>
+                  <p class="text-xs text-base-content/60">목표: ${participant.target_distance.toFixed(1)} km</p>
+                </div>
+              </div>
+              <div class="text-right">
+                <p class="text-2xl font-bold text-${progressColor}">${participant.progress_percent}%</p>
+                <p class="text-xs text-base-content/60">${participant.achieved_distance.toFixed(1)} km</p>
+              </div>
+            </div>
+
+            <div class="w-full bg-base-300 rounded-full h-3">
+              <div class="bg-${progressColor} h-3 rounded-full transition-all" style="width: ${Math.min(participant.progress_percent, 100)}%"></div>
+            </div>
+
+            <div class="flex justify-between mt-2 text-xs text-base-content/60">
+              <span>활동 횟수: ${participant.activity_count}회</span>
+              <span>남은 거리: ${Math.max(0, participant.target_distance - participant.achieved_distance).toFixed(1)} km</span>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+
+    container.innerHTML = html;
+  } catch (error) {
+    console.error('챌린지 진행상황 로드 실패:', error);
+    container.innerHTML = `
+      <div class="alert alert-error shadow-lg">
+        <div>
+          <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current flex-shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          <span>진행상황을 불러오는데 실패했습니다.</span>
+        </div>
+      </div>
+    `;
+  }
+}
+
+// 참가 모달 열기
+async function openJoinModal() {
+  if (!currentUser) {
+    alert('Strava를 먼저 연동해주세요.');
+    return;
+  }
+
+  const modal = document.getElementById('joinChallengeModal');
+  const userName = document.getElementById('joinUserName');
+  const targetDistance = document.getElementById('targetDistance');
+
+  userName.textContent = currentUser.nickname || currentUser.name;
+  targetDistance.value = '';
+
+  modal.showModal();
+}
+
+// 참가 모달 닫기
+function closeJoinModal() {
+  const modal = document.getElementById('joinChallengeModal');
+  modal.close();
+}
+
+// 챌린지 참가 저장
+async function saveJoinChallenge() {
+  const targetDistance = document.getElementById('targetDistance').value;
+
+  if (!targetDistance || targetDistance <= 0) {
+    alert('목표 거리를 입력해주세요.');
+    return;
+  }
+
+  if (!currentUser || !currentChallenge) {
+    alert('챌린지 참가에 필요한 정보가 없습니다.');
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/challenges/${currentChallenge.id}/join`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: currentUser.id,
+        targetDistance: parseFloat(targetDistance)
+      })
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      alert('챌린지 참가가 완료되었습니다!');
+      closeJoinModal();
+      loadChallengeProgress();
+    } else {
+      alert(result.error || '참가에 실패했습니다.');
+    }
+  } catch (error) {
+    console.error('챌린지 참가 실패:', error);
+    alert('참가에 실패했습니다.');
+  }
 }

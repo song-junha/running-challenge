@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const axios = require('axios');
-const { initDatabase, userQueries, activityQueries, competitionQueries } = require('./database');
+const { initDatabase, userQueries, activityQueries, competitionQueries, challengeQueries } = require('./database');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -515,6 +515,105 @@ app.post('/api/competitions/:id/leave', async (req, res) => {
     await competitionQueries.updateCompetition(id, competition.date, competition.name, updatedParticipants);
 
     res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============= 맞짱 챌린지 API =============
+
+// 모든 챌린지 조회
+app.get('/api/challenges', async (req, res) => {
+  try {
+    const challenges = await challengeQueries.getAllChallenges();
+    res.json(challenges);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 특정 챌린지 조회
+app.get('/api/challenges/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const challenge = await challengeQueries.getChallenge(id);
+    if (!challenge) {
+      return res.status(404).json({ error: '챌린지를 찾을 수 없습니다' });
+    }
+    res.json(challenge);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 챌린지 생성
+app.post('/api/challenges', async (req, res) => {
+  try {
+    const { name, start_date, end_date } = req.body;
+
+    if (!name || !start_date || !end_date) {
+      return res.status(400).json({ error: '필수 정보가 누락되었습니다' });
+    }
+
+    const result = await challengeQueries.addChallenge(name, start_date, end_date);
+    res.json({ success: true, id: result.id });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 챌린지 참가자 및 진행상황 조회
+app.get('/api/challenges/:id/progress', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const progress = await challengeQueries.getChallengeProgress(id);
+    res.json(progress);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 챌린지 참가
+app.post('/api/challenges/:id/join', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId, targetDistance } = req.body;
+
+    if (!userId || !targetDistance) {
+      return res.status(400).json({ error: '사용자 ID와 목표 거리는 필수입니다' });
+    }
+
+    // 챌린지 존재 확인
+    const challenge = await challengeQueries.getChallenge(id);
+    if (!challenge) {
+      return res.status(404).json({ error: '챌린지를 찾을 수 없습니다' });
+    }
+
+    // 사용자 존재 확인
+    const user = await userQueries.getUser(userId);
+    if (!user) {
+      return res.status(404).json({ error: '사용자를 찾을 수 없습니다' });
+    }
+
+    await challengeQueries.joinChallenge(id, userId, targetDistance);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 챌린지 삭제
+app.delete('/api/challenges/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { password } = req.body;
+
+    if (!verifyAdminPassword(password)) {
+      return res.status(403).json({ error: '관리자 비밀번호가 일치하지 않습니다' });
+    }
+
+    await challengeQueries.deleteChallenge(id);
+    res.json({ success: true, message: '챌린지가 삭제되었습니다' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

@@ -110,6 +110,31 @@ async function initDatabase() {
       )
     `);
 
+    // 맞짱 챌린지 테이블
+    await runQuery(`
+      CREATE TABLE IF NOT EXISTS challenges (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        start_date TEXT NOT NULL,
+        end_date TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // 맞짱 챌린지 참가자 테이블
+    await runQuery(`
+      CREATE TABLE IF NOT EXISTS challenge_participants (
+        id SERIAL PRIMARY KEY,
+        challenge_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        target_distance REAL NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (challenge_id) REFERENCES challenges (id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+        UNIQUE(challenge_id, user_id)
+      )
+    `);
+
     console.log('✅ 데이터베이스 초기화 완료');
   } catch (error) {
     console.error('❌ 데이터베이스 초기화 실패:', error);
@@ -453,10 +478,98 @@ const competitionQueries = {
   }
 };
 
+// 맞짱 챌린지 관련 함수
+const challengeQueries = {
+  // 챌린지 추가
+  addChallenge: async (name, start_date, end_date) => {
+    const result = await runQuery(
+      'INSERT INTO challenges (name, start_date, end_date) VALUES ($1, $2, $3) RETURNING id',
+      [name, start_date, end_date]
+    );
+    return { id: result.rows[0].id };
+  },
+
+  // 모든 챌린지 조회
+  getAllChallenges: async () => {
+    return await allQuery('SELECT * FROM challenges ORDER BY start_date DESC');
+  },
+
+  // 챌린지 조회
+  getChallenge: async (id) => {
+    return await getQuery('SELECT * FROM challenges WHERE id = $1', [id]);
+  },
+
+  // 챌린지에 참가
+  joinChallenge: async (challenge_id, user_id, target_distance) => {
+    return await runQuery(
+      'INSERT INTO challenge_participants (challenge_id, user_id, target_distance) VALUES ($1, $2, $3) ON CONFLICT (challenge_id, user_id) DO UPDATE SET target_distance = EXCLUDED.target_distance RETURNING id',
+      [challenge_id, user_id, target_distance]
+    );
+  },
+
+  // 챌린지 참가자 조회
+  getChallengeParticipants: async (challenge_id) => {
+    return await allQuery(`
+      SELECT cp.*, COALESCE(u.nickname, u.name) as user_name, u.strava_id
+      FROM challenge_participants cp
+      JOIN users u ON cp.user_id = u.id
+      WHERE cp.challenge_id = $1
+      ORDER BY cp.created_at ASC
+    `, [challenge_id]);
+  },
+
+  // 챌린지 참가자의 달성 거리 계산
+  getChallengeProgress: async (challenge_id) => {
+    const challenge = await getQuery('SELECT * FROM challenges WHERE id = $1', [challenge_id]);
+    if (!challenge) return [];
+
+    const participants = await allQuery(`
+      SELECT
+        cp.id,
+        cp.user_id,
+        cp.target_distance,
+        COALESCE(u.nickname, u.name) as user_name,
+        u.strava_id
+      FROM challenge_participants cp
+      JOIN users u ON cp.user_id = u.id
+      WHERE cp.challenge_id = $1
+    `, [challenge_id]);
+
+    // 각 참가자별 달성 거리 계산
+    for (const participant of participants) {
+      const stats = await getQuery(`
+        SELECT
+          COALESCE(SUM(distance), 0) / 1000.0 as achieved_distance,
+          COUNT(*) as activity_count
+        FROM activities
+        WHERE user_id = $1
+          AND start_date >= $2
+          AND start_date <= $3
+          AND type = 'Run'
+      `, [participant.user_id, challenge.start_date, challenge.end_date + 'T23:59:59']);
+
+      participant.achieved_distance = stats?.achieved_distance || 0;
+      participant.activity_count = stats?.activity_count || 0;
+      participant.progress_percent = participant.target_distance > 0
+        ? Math.round((participant.achieved_distance / participant.target_distance) * 100)
+        : 0;
+    }
+
+    return participants;
+  },
+
+  // 챌린지 삭제
+  deleteChallenge: async (id) => {
+    await runQuery('DELETE FROM challenge_participants WHERE challenge_id = $1', [id]);
+    return await runQuery('DELETE FROM challenges WHERE id = $1', [id]);
+  }
+};
+
 module.exports = {
   pool,
   initDatabase,
   userQueries,
   activityQueries,
-  competitionQueries
+  competitionQueries,
+  challengeQueries
 };
