@@ -317,6 +317,7 @@ async function checkConnectionStatus() {
   const connected = urlParams.get('connected');
   const userId = urlParams.get('userId');
   const error = urlParams.get('error');
+  const detail = urlParams.get('detail');
 
   if (connected && userId) {
     currentUserId = userId;
@@ -328,7 +329,14 @@ async function checkConnectionStatus() {
     // URL 파라미터 제거
     window.history.replaceState({}, document.title, '/');
   } else if (error) {
-    showMessage('Strava 연동 실패: ' + error, 'error');
+    let errorMsg = 'Strava 연동 실패: ' + error;
+    if (detail) {
+      console.error('상세 에러:', detail);
+      errorMsg += '\n\n상세 정보 (콘솔 확인): ' + detail;
+    }
+    showMessage(errorMsg, 'error');
+    // URL 파라미터 제거
+    window.history.replaceState({}, document.title, '/');
   } else {
     // 로컬 스토리지에서 사용자 ID 확인
     const storedUserId = localStorage.getItem('stravaUserId');

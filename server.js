@@ -854,7 +854,8 @@ app.get('/auth/strava/callback', async (req, res) => {
     res.redirect(`/?connected=true&userId=${user.id}`);
   } catch (error) {
     console.error('Strava OAuth 오류:', error.response?.data || error.message);
-    res.redirect('/?error=token_exchange_failed');
+    const errorDetail = JSON.stringify(error.response?.data || { message: error.message });
+    res.redirect(`/?error=token_exchange_failed&detail=${encodeURIComponent(errorDetail)}`);
   }
 });
 
