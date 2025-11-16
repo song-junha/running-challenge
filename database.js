@@ -1,5 +1,13 @@
 const { Pool } = require('pg');
 
+// DATABASE_URL 검증
+if (!process.env.DATABASE_URL) {
+  console.error('❌ DATABASE_URL 환경 변수가 설정되지 않았습니다!');
+  console.error('   Cloudtype에서 환경 변수를 설정했는지 확인하세요.');
+  console.error('   예: DATABASE_URL=postgresql://user:pass@host:5432/dbname');
+  process.exit(1);
+}
+
 // PostgreSQL 연결 설정
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -53,6 +61,7 @@ async function initDatabase() {
         strava_id TEXT UNIQUE,
         access_token TEXT,
         refresh_token TEXT,
+        expires_at INTEGER,
         full_sync_done INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
@@ -146,10 +155,10 @@ async function initDatabase() {
 // 사용자 관련 함수
 const userQueries = {
   // 사용자 추가
-  addUser: async (name, strava_id, access_token, refresh_token) => {
+  addUser: async (name, strava_id, access_token, refresh_token, expires_at = null) => {
     const result = await runQuery(
-      'INSERT INTO users (name, strava_id, access_token, refresh_token) VALUES ($1, $2, $3, $4) RETURNING id',
-      [name, strava_id, access_token, refresh_token]
+      'INSERT INTO users (name, strava_id, access_token, refresh_token, expires_at) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+      [name, strava_id, access_token, refresh_token, expires_at]
     );
     return { lastID: result.rows[0].id };
   },
@@ -170,10 +179,10 @@ const userQueries = {
   },
 
   // 토큰 업데이트
-  updateTokens: async (id, access_token, refresh_token) => {
+  updateTokens: async (id, access_token, refresh_token, expires_at = null) => {
     return await runQuery(
-      'UPDATE users SET access_token = $1, refresh_token = $2 WHERE id = $3',
-      [access_token, refresh_token, id]
+      'UPDATE users SET access_token = $1, refresh_token = $2, expires_at = $3 WHERE id = $4',
+      [access_token, refresh_token, expires_at, id]
     );
   },
 

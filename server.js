@@ -143,48 +143,15 @@ app.get('/api/activities/:activityId/detail', async (req, res) => {
       return res.status(404).json({ error: '활동을 찾을 수 없습니다' });
     }
 
-    // 해당 사용자의 access_token 가져오기
-    let user = await userQueries.getUser(activity.user_id);
+    // 유효한 토큰 가져오기 (만료 시 자동 갱신)
+    const user = await getValidToken(activity.user_id);
 
-    if (!user || !user.access_token) {
-      return res.status(401).json({ error: '인증 정보가 없습니다' });
-    }
+    // Strava API에서 활동 상세 정보 가져오기
+    const response = await axios.get(`https://www.strava.com/api/v3/activities/${activityId}`, {
+      headers: { 'Authorization': `Bearer ${user.access_token}` }
+    });
 
-    try {
-      // Strava API에서 활동 상세 정보 가져오기
-      const response = await axios.get(`https://www.strava.com/api/v3/activities/${activityId}`, {
-        headers: { 'Authorization': `Bearer ${user.access_token}` }
-      });
-
-      res.json(response.data);
-    } catch (error) {
-      // 401 에러면 토큰 갱신 시도
-      if (error.response && error.response.status === 401 && user.refresh_token) {
-        console.log('Access token 만료, refresh 시도...');
-
-        // Refresh token으로 새 access token 받기
-        const refreshResponse = await axios.post('https://www.strava.com/oauth/token', {
-          client_id: process.env.STRAVA_CLIENT_ID,
-          client_secret: process.env.STRAVA_CLIENT_SECRET,
-          grant_type: 'refresh_token',
-          refresh_token: user.refresh_token
-        });
-
-        const { access_token, refresh_token } = refreshResponse.data;
-
-        // DB에 새 토큰 저장
-        await userQueries.updateTokens(user.id, access_token, refresh_token);
-
-        // 갱신된 토큰으로 재시도
-        const retryResponse = await axios.get(`https://www.strava.com/api/v3/activities/${activityId}`, {
-          headers: { 'Authorization': `Bearer ${access_token}` }
-        });
-
-        res.json(retryResponse.data);
-      } else {
-        throw error;
-      }
-    }
+    res.json(response.data);
   } catch (error) {
     console.error('활동 상세 정보 조회 실패:', error.message);
     res.status(500).json({ error: error.message });
@@ -650,6 +617,55 @@ app.get('/api/challenges/:id/user/:userId/activities', async (req, res) => {
 
 // ============= Strava OAuth =============
 
+// Strava 토큰 자동 갱신 함수
+async function refreshStravaToken(user) {
+  try {
+    console.log(`토큰 갱신 시작 - 사용자 ${user.id}`);
+
+    const refreshResponse = await axios.post('https://www.strava.com/oauth/token', {
+      client_id: process.env.STRAVA_CLIENT_ID,
+      client_secret: process.env.STRAVA_CLIENT_SECRET,
+      grant_type: 'refresh_token',
+      refresh_token: user.refresh_token
+    });
+
+    const { access_token, refresh_token, expires_at } = refreshResponse.data;
+
+    // DB에 새 토큰 저장
+    await userQueries.updateTokens(user.id, access_token, refresh_token, expires_at);
+
+    console.log(`✅ 토큰 갱신 완료 - 사용자 ${user.id}`);
+
+    return { access_token, refresh_token, expires_at };
+  } catch (error) {
+    console.error('토큰 갱신 실패:', error.message);
+    throw error;
+  }
+}
+
+// 유효한 토큰 가져오기 (만료 시 자동 갱신)
+async function getValidToken(userId) {
+  let user = await userQueries.getUser(userId);
+
+  if (!user || !user.refresh_token) {
+    throw new Error('사용자 인증 정보가 없습니다');
+  }
+
+  // 토큰 만료 확인 (현재 시간 + 5분 여유)
+  const now = Math.floor(Date.now() / 1000);
+  const expiryBuffer = 300; // 5분
+
+  if (!user.expires_at || user.expires_at <= (now + expiryBuffer)) {
+    console.log(`토큰이 만료되었거나 곧 만료됩니다 - 사용자 ${userId}`);
+    const tokens = await refreshStravaToken(user);
+    user.access_token = tokens.access_token;
+    user.refresh_token = tokens.refresh_token;
+    user.expires_at = tokens.expires_at;
+  }
+
+  return user;
+}
+
 // Strava API 헬퍼 함수들
 async function fetchStravaActivities(accessToken, after = null, perPage = 200) {
   const url = 'https://www.strava.com/api/v3/athlete/activities';
@@ -708,11 +724,8 @@ async function fetchAllActivities(accessToken, after) {
 }
 
 async function syncUserActivities(userId, months = null) {
-  const user = await userQueries.getUser(userId);
-
-  if (!user || !user.access_token) {
-    throw new Error('사용자 토큰을 찾을 수 없습니다');
-  }
+  // 유효한 토큰 가져오기 (만료 시 자동 갱신)
+  const user = await getValidToken(userId);
 
   let activities;
   let periodDesc;
@@ -817,21 +830,22 @@ app.get('/auth/strava/callback', async (req, res) => {
       grant_type: 'authorization_code'
     });
 
-    const { access_token, refresh_token, athlete } = tokenResponse.data;
+    const { access_token, refresh_token, expires_at, athlete } = tokenResponse.data;
 
     // 사용자 확인 또는 생성
     let user = await userQueries.getUserByStravaId(athlete.id.toString());
 
     if (user) {
       // 기존 사용자 - 토큰 업데이트
-      await userQueries.updateTokens(user.id, access_token, refresh_token);
+      await userQueries.updateTokens(user.id, access_token, refresh_token, expires_at);
     } else {
       // 신규 사용자 - 생성
       const result = await userQueries.addUser(
         `${athlete.firstname} ${athlete.lastname}`,
         athlete.id.toString(),
         access_token,
-        refresh_token
+        refresh_token,
+        expires_at
       );
       user = { id: result.lastID };
     }
