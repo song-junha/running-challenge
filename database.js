@@ -67,6 +67,19 @@ async function initDatabase() {
       )
     `);
 
+    // 마이그레이션: expires_at 컬럼 추가 (이미 있으면 무시)
+    try {
+      await runQuery(`
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS expires_at INTEGER
+      `);
+      console.log('✅ 마이그레이션: expires_at 컬럼 추가 완료');
+    } catch (err) {
+      // 컬럼이 이미 있으면 무시
+      if (!err.message.includes('already exists')) {
+        console.warn('⚠️  마이그레이션 경고:', err.message);
+      }
+    }
+
     // 활동 기록 테이블
     await runQuery(`
       CREATE TABLE IF NOT EXISTS activities (
