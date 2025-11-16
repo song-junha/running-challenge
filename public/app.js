@@ -2079,8 +2079,12 @@ async function loadChallengeProgress() {
     participants.forEach((participant, index) => {
       const rank = index + 1;
       const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `${rank}`;
-      const progressColor = participant.progress_percent >= 100 ? 'success' :
-                           participant.progress_percent >= 70 ? 'warning' : 'error';
+
+      // 진행률에 따른 색상 클래스 (고정 클래스 사용)
+      const progressColorClass = participant.progress_percent >= 100 ? 'text-success' :
+                                 participant.progress_percent >= 70 ? 'text-warning' : 'text-error';
+      const progressBgClass = participant.progress_percent >= 100 ? 'bg-success' :
+                              participant.progress_percent >= 70 ? 'bg-warning' : 'bg-error';
 
       const remainingDistance = Math.max(0, participant.target_distance - participant.achieved_distance);
       const dailyRequired = daysLeft > 0 ? (remainingDistance / daysLeft).toFixed(1) : 0;
@@ -2097,13 +2101,13 @@ async function loadChallengeProgress() {
                 </div>
               </div>
               <div class="text-right">
-                <p class="text-2xl font-bold text-${progressColor}">${participant.progress_percent}%</p>
+                <p class="text-2xl font-bold ${progressColorClass}">${participant.progress_percent}%</p>
                 <p class="text-xs text-base-content/60">${participant.achieved_distance.toFixed(1)} km</p>
               </div>
             </div>
 
             <div class="w-full bg-base-300 rounded-full h-3">
-              <div class="bg-${progressColor} h-3 rounded-full transition-all" style="width: ${Math.min(participant.progress_percent, 100)}%"></div>
+              <div class="${progressBgClass} h-3 rounded-full transition-all" style="width: ${Math.min(participant.progress_percent, 100)}%"></div>
             </div>
 
             <div class="flex justify-between mt-2 text-xs text-base-content/60">
