@@ -143,8 +143,15 @@
     <div id="challengePage" class="page-content hidden">
       <div class="card bg-base-100 shadow-md mb-4 border border-base-300">
         <div class="card-body p-4">
-          <h1 class="card-title text-2xl font-bold text-base-content">🥊 스시101 맞짱</h1>
-          <p class="text-sm text-base-content/70">참여기간: 2025.11.07 ~ 2025.12.06</p>
+          <div class="flex items-center justify-between">
+            <div>
+              <h1 class="card-title text-2xl font-bold text-base-content">🥊 스시101 맞짱</h1>
+              <p class="text-sm text-base-content/70">참여기간: 2025.11.07 ~ 2025.12.06</p>
+            </div>
+            <div id="challengeDDay" class="text-right">
+              <p class="text-3xl font-bold text-error"></p>
+            </div>
+          </div>
           <div class="flex gap-2 mt-3">
             <button id="joinChallengeBtn" class="btn btn-primary btn-sm" onclick="openJoinModal()">참여</button>
             <button id="syncChallengeBtn" class="btn btn-success btn-sm gap-1" onclick="syncChallengeActivities()">

@@ -2075,6 +2075,18 @@ async function loadChallengeProgress() {
     const endDate = new Date(currentChallenge.end_date + 'T23:59:59');
     const daysLeft = Math.max(0, Math.ceil((endDate - today) / (1000 * 60 * 60 * 24)));
 
+    // D-Day 업데이트
+    const dDayElement = document.querySelector('#challengeDDay p');
+    if (dDayElement) {
+      if (daysLeft > 0) {
+        dDayElement.textContent = `D-${daysLeft}`;
+      } else if (daysLeft === 0) {
+        dDayElement.textContent = 'D-Day';
+      } else {
+        dDayElement.textContent = '종료';
+      }
+    }
+
     let html = '';
     participants.forEach((participant, index) => {
       const rank = index + 1;
