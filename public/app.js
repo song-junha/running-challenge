@@ -2297,6 +2297,178 @@ async function saveJoinChallenge() {
   }
 }
 
+// 선물하기 모달 열기
+async function openGiftModal() {
+  if (!currentUser || !currentChallenge) {
+    alert('챌린지 정보가 없습니다.');
+    return;
+  }
+
+  const modal = document.getElementById('giftModal');
+  const normalContent = document.getElementById('normalGiftContent');
+  const adminContent = document.getElementById('adminGiftContent');
+  const isAdmin = currentUser.id === 1; // 송준하 (user_id = 1)
+
+  if (isAdmin) {
+    // 관리자 모드
+    normalContent.classList.add('hidden');
+    adminContent.classList.remove('hidden');
+
+    // 참가자 목록 불러오기
+    const response = await fetch(`/api/challenges/${currentChallenge.id}/progress`);
+    const participants = await response.json();
+
+    const listContainer = document.getElementById('adminGiftList');
+    listContainer.innerHTML = participants.map(p => `
+      <div class="card bg-base-100 shadow-sm border border-base-300">
+        <div class="card-body p-4">
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex-1">
+              <p class="font-semibold">${p.user_name}</p>
+              <p class="text-xs text-base-content/60">현재 목표: ${p.target_distance}km</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <input
+                type="number"
+                class="input input-bordered input-sm w-24"
+                placeholder="±0"
+                step="0.1"
+                id="adjust-${p.user_id}"
+              />
+              <span class="text-sm">km</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  } else {
+    // 일반 사용자 모드
+    adminContent.classList.add('hidden');
+    normalContent.classList.remove('hidden');
+
+    // 오늘 선물 가능한지 확인
+    const checkResponse = await fetch(`/api/challenges/${currentChallenge.id}/gift/check?userId=${currentUser.id}`);
+    const { canGift } = await checkResponse.json();
+
+    if (!canGift) {
+      alert('오늘은 이미 선물하셨습니다. 내일 다시 시도해주세요!');
+      return;
+    }
+
+    // 참가자 목록 불러오기 (자신과 송준하 제외)
+    const response = await fetch(`/api/challenges/${currentChallenge.id}/progress`);
+    const participants = await response.json();
+
+    const recipientSelect = document.getElementById('giftRecipient');
+    recipientSelect.innerHTML = '<option value="">선택하세요</option>' +
+      participants
+        .filter(p => p.user_id !== currentUser.id && p.user_id !== 1) // 본인과 송준하 제외
+        .map(p => `<option value="${p.user_id}">${p.user_name} (현재 목표: ${p.target_distance}km)</option>`)
+        .join('');
+
+    // 입력 필드 초기화
+    document.getElementById('giftDistance').value = '';
+  }
+
+  modal.showModal();
+}
+
+// 선물하기 모달 닫기
+function closeGiftModal() {
+  const modal = document.getElementById('giftModal');
+  modal.close();
+}
+
+// 일반 사용자 선물하기
+async function saveGift() {
+  const recipientId = parseInt(document.getElementById('giftRecipient').value);
+  const distance = parseFloat(document.getElementById('giftDistance').value);
+
+  if (!recipientId) {
+    alert('선물받을 사람을 선택해주세요.');
+    return;
+  }
+
+  if (!distance || distance <= 0) {
+    alert('선물할 거리를 입력해주세요.');
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/challenges/${currentChallenge.id}/gift`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fromUserId: currentUser.id,
+        toUserId: recipientId,
+        distance: distance
+      })
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      alert('선물이 완료되었습니다! 🎁');
+      closeGiftModal();
+      window.location.reload();
+    } else {
+      alert(result.error || '선물에 실패했습니다.');
+    }
+  } catch (error) {
+    console.error('선물 실패:', error);
+    alert('선물에 실패했습니다.');
+  }
+}
+
+// 관리자 목표거리 일괄 조정
+async function saveAdminGift() {
+  // 모든 조정 내역 수집
+  const adjustments = [];
+  const inputs = document.querySelectorAll('[id^="adjust-"]');
+
+  inputs.forEach(input => {
+    const userId = parseInt(input.id.replace('adjust-', ''));
+    const change = parseFloat(input.value);
+
+    if (change && change !== 0) {
+      adjustments.push({
+        user_id: userId,
+        distance_change: change
+      });
+    }
+  });
+
+  if (adjustments.length === 0) {
+    alert('변경할 내용이 없습니다.');
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/challenges/${currentChallenge.id}/gift`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fromUserId: currentUser.id,
+        isAdmin: true,
+        adjustments: adjustments
+      })
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      alert(`${adjustments.length}명의 목표거리가 조정되었습니다! ✅`);
+      closeGiftModal();
+      window.location.reload();
+    } else {
+      alert(result.error || '조정에 실패했습니다.');
+    }
+  } catch (error) {
+    console.error('조정 실패:', error);
+    alert('조정에 실패했습니다.');
+  }
+}
+
 // 참가자 활동 토글
 let expandedParticipant = null;
 

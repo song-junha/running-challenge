@@ -569,6 +569,65 @@ app.post('/api/challenges/:id/join', async (req, res) => {
   }
 });
 
+// 선물하기 가능 여부 확인
+app.get('/api/challenges/:id/gift/check', async (req, res) => {
+  try {
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({ error: '사용자 ID는 필수입니다' });
+    }
+
+    const canGift = await challengeQueries.checkGiftAvailability(userId);
+    res.json({ canGift });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 선물하기
+app.post('/api/challenges/:id/gift', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { fromUserId, toUserId, distance, isAdmin, adjustments } = req.body;
+
+    if (!fromUserId) {
+      return res.status(400).json({ error: '사용자 ID는 필수입니다' });
+    }
+
+    // 관리자 모드 (송준하, user_id = 1)
+    if (isAdmin && fromUserId === 1) {
+      if (!adjustments || !Array.isArray(adjustments)) {
+        return res.status(400).json({ error: '조정 내역이 필요합니다' });
+      }
+
+      await challengeQueries.adminAdjustTargets(adjustments, fromUserId, id);
+      res.json({ success: true });
+    } else {
+      // 일반 사용자
+      // 하루에 한번만 가능
+      const canGift = await challengeQueries.checkGiftAvailability(fromUserId);
+      if (!canGift) {
+        return res.status(400).json({ error: '오늘은 이미 선물하셨습니다. 내일 다시 시도해주세요.' });
+      }
+
+      // 송준하(user_id=1)에게는 선물 불가
+      if (toUserId === 1) {
+        return res.status(400).json({ error: '송준하에게는 선물할 수 없습니다.' });
+      }
+
+      if (!toUserId || !distance) {
+        return res.status(400).json({ error: '받는 사람과 거리는 필수입니다' });
+      }
+
+      await challengeQueries.giveGift(fromUserId, toUserId, distance, id);
+      res.json({ success: true });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // 챌린지 삭제
 app.delete('/api/challenges/:id', async (req, res) => {
   try {

@@ -154,6 +154,12 @@
           </div>
           <div class="flex gap-2 mt-3">
             <button id="joinChallengeBtn" class="btn btn-primary btn-sm" onclick="openJoinModal()">참여</button>
+            <button id="giftBtn" class="btn btn-error btn-sm gap-1" onclick="openGiftModal()">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
+              </svg>
+              선물하기
+            </button>
             <button id="syncChallengeBtn" class="btn btn-success btn-sm gap-1" onclick="syncChallengeActivities()">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -437,6 +443,76 @@
         <div class="flex gap-2 pt-4">
           <button type="button" class="btn btn-primary flex-1" onclick="saveJoinChallenge()">참가 확정</button>
           <button type="button" class="btn btn-ghost flex-1" onclick="closeJoinModal()">취소</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- 선물하기 모달 -->
+  <dialog id="giftModal" class="modal">
+    <div class="modal-box max-w-2xl">
+      <form method="dialog">
+        <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+      </form>
+      <h3 class="font-bold text-xl mb-6">🎁 목표거리 선물하기</h3>
+
+      <!-- 일반 사용자용 -->
+      <div id="normalGiftContent" class="space-y-4 hidden">
+        <div class="alert alert-info">
+          <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+          <span>하루에 한 번만 선물할 수 있습니다. 자신의 목표거리를 다른 참가자에게 전달하세요!</span>
+        </div>
+
+        <!-- 받는 사람 선택 -->
+        <div>
+          <label class="block text-sm font-semibold mb-2">선물받을 사람 *</label>
+          <select id="giftRecipient" class="select select-bordered w-full" style="height: 44px; font-size: 15px;">
+            <option value="">선택하세요</option>
+          </select>
+        </div>
+
+        <!-- 선물할 거리 -->
+        <div>
+          <label class="block text-sm font-semibold mb-2">선물할 거리 (km) *</label>
+          <input
+            type="number"
+            id="giftDistance"
+            class="input input-bordered w-full"
+            style="height: 44px; font-size: 15px;"
+            placeholder="10"
+            min="0.1"
+            step="0.1"
+            required
+          />
+          <p class="text-xs text-base-content/60 mt-1">내 목표거리에서 차감되고, 선택한 사람의 목표거리에 추가됩니다.</p>
+        </div>
+
+        <!-- 저장 버튼 -->
+        <div class="flex gap-2 pt-4">
+          <button type="button" class="btn btn-error flex-1" onclick="saveGift()">선물하기</button>
+          <button type="button" class="btn btn-ghost flex-1" onclick="closeGiftModal()">취소</button>
+        </div>
+      </div>
+
+      <!-- 관리자용 (송준하) -->
+      <div id="adminGiftContent" class="space-y-4 hidden">
+        <div class="alert alert-warning">
+          <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <span>관리자 모드: 모든 참가자의 목표거리를 조정할 수 있습니다.</span>
+        </div>
+
+        <div id="adminGiftList" class="space-y-3 max-h-96 overflow-y-auto">
+          <!-- 동적으로 생성됨 -->
+        </div>
+
+        <!-- 저장 버튼 -->
+        <div class="flex gap-2 pt-4">
+          <button type="button" class="btn btn-error flex-1" onclick="saveAdminGift()">일괄 적용</button>
+          <button type="button" class="btn btn-ghost flex-1" onclick="closeGiftModal()">취소</button>
         </div>
       </div>
     </div>

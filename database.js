@@ -584,6 +584,79 @@ const challengeQueries = {
   deleteChallenge: async (id) => {
     await runQuery('DELETE FROM challenge_participants WHERE challenge_id = $1', [id]);
     return await runQuery('DELETE FROM challenges WHERE id = $1', [id]);
+  },
+
+  // 오늘 선물했는지 확인
+  checkGiftAvailability: async (userId) => {
+    const today = new Date().toISOString().split('T')[0];
+    const result = await getQuery(
+      'SELECT * FROM gift_logs WHERE from_user_id = $1 AND gift_date = $2',
+      [userId, today]
+    );
+    return !result; // 기록이 없으면 true (선물 가능)
+  },
+
+  // 선물하기 (일반 사용자)
+  giveGift: async (fromUserId, toUserId, distance, challengeId) => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // 송신자 목표거리 차감
+      await client.query(
+        'UPDATE challenge_participants SET target_distance = target_distance - $1 WHERE user_id = $2 AND challenge_id = $3',
+        [distance, fromUserId, challengeId]
+      );
+
+      // 수신자 목표거리 증가
+      await client.query(
+        'UPDATE challenge_participants SET target_distance = target_distance + $1 WHERE user_id = $2 AND challenge_id = $3',
+        [distance, toUserId, challengeId]
+      );
+
+      // 선물 기록 저장
+      await client.query(
+        'INSERT INTO gift_logs (from_user_id, to_user_id, distance_change) VALUES ($1, $2, $3)',
+        [fromUserId, toUserId, distance]
+      );
+
+      await client.query('COMMIT');
+      return { success: true };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  },
+
+  // 관리자가 목표거리 일괄 조정
+  adminAdjustTargets: async (adjustments, adminUserId, challengeId) => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      for (const adj of adjustments) {
+        await client.query(
+          'UPDATE challenge_participants SET target_distance = target_distance + $1 WHERE user_id = $2 AND challenge_id = $3',
+          [adj.distance_change, adj.user_id, challengeId]
+        );
+
+        // 관리자 선물 기록
+        await client.query(
+          'INSERT INTO gift_logs (from_user_id, to_user_id, distance_change) VALUES ($1, $2, $3)',
+          [adminUserId, adj.user_id, adj.distance_change]
+        );
+      }
+
+      await client.query('COMMIT');
+      return { success: true };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 };
 
