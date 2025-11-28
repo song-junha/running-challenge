@@ -578,8 +578,19 @@ app.get('/api/challenges/:id/gift/check', async (req, res) => {
       return res.status(400).json({ error: '사용자 ID는 필수입니다' });
     }
 
-    const canGift = await challengeQueries.checkGiftAvailability(userId);
-    res.json({ canGift });
+    // 날짜 체크
+    const today = new Date();
+    const endDate = new Date('2025-12-12T23:59:59');
+    if (today > endDate) {
+      return res.json({ canGift: false, reason: '기간 종료' });
+    }
+
+    // 할당량 확인 및 생성
+    await challengeQueries.ensureDailyQuota(parseInt(userId));
+    const canGift = await challengeQueries.checkGiftAvailability(parseInt(userId));
+    const quota = await challengeQueries.getQuotaInfo(parseInt(userId));
+
+    res.json({ canGift, quota });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -593,6 +604,13 @@ app.post('/api/challenges/:id/gift', async (req, res) => {
 
     if (!fromUserId) {
       return res.status(400).json({ error: '사용자 ID는 필수입니다' });
+    }
+
+    // 2025-12-12까지만 선물하기 가능
+    const today = new Date();
+    const endDate = new Date('2025-12-12T23:59:59');
+    if (today > endDate) {
+      return res.status(400).json({ error: '선물하기 기간이 종료되었습니다.' });
     }
 
     // 관리자 모드 (송준하, user_id = 1)
@@ -618,6 +636,11 @@ app.post('/api/challenges/:id/gift', async (req, res) => {
 
       if (!toUserId || !distance) {
         return res.status(400).json({ error: '받는 사람과 거리는 필수입니다' });
+      }
+
+      // 거리 제한 (1-50km)
+      if (distance < 1 || distance > 50) {
+        return res.status(400).json({ error: '선물 가능한 거리는 1-50km입니다.' });
       }
 
       await challengeQueries.giveGift(fromUserId, toUserId, distance, id);

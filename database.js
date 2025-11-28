@@ -586,14 +586,46 @@ const challengeQueries = {
     return await runQuery('DELETE FROM challenges WHERE id = $1', [id]);
   },
 
-  // 오늘 선물했는지 확인
-  checkGiftAvailability: async (userId) => {
+  // 오늘의 할당량 확인 및 생성
+  ensureDailyQuota: async (userId) => {
     const today = new Date().toISOString().split('T')[0];
-    const result = await getQuery(
-      'SELECT * FROM gift_logs WHERE from_user_id = $1 AND gift_date = $2',
+
+    // 오늘 날짜의 quota가 있는지 확인
+    let quota = await getQuery(
+      'SELECT * FROM daily_gift_quota WHERE user_id = $1 AND quota_date = $2',
       [userId, today]
     );
-    return !result; // 기록이 없으면 true (선물 가능)
+
+    // 없으면 0-3 랜덤 생성
+    if (!quota) {
+      const randomMax = Math.floor(Math.random() * 4); // 0, 1, 2, 3 중 랜덤
+      await runQuery(
+        'INSERT INTO daily_gift_quota (user_id, quota_date, max_count, used_count) VALUES ($1, $2, $3, 0)',
+        [userId, today, randomMax]
+      );
+      quota = await getQuery(
+        'SELECT * FROM daily_gift_quota WHERE user_id = $1 AND quota_date = $2',
+        [userId, today]
+      );
+    }
+
+    return quota;
+  },
+
+  // 오늘 선물 가능한지 확인
+  checkGiftAvailability: async (userId) => {
+    const quota = await challengeQueries.ensureDailyQuota(userId);
+    return quota.used_count < quota.max_count;
+  },
+
+  // 할당량 정보 가져오기 (관리자용)
+  getQuotaInfo: async (userId) => {
+    const today = new Date().toISOString().split('T')[0];
+    const quota = await getQuery(
+      'SELECT * FROM daily_gift_quota WHERE user_id = $1 AND quota_date = $2',
+      [userId, today]
+    );
+    return quota || { max_count: 0, used_count: 0 };
   },
 
   // 선물하기 (일반 사용자)
@@ -601,6 +633,8 @@ const challengeQueries = {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+
+      const today = new Date().toISOString().split('T')[0];
 
       // 송신자 목표거리 차감
       await client.query(
@@ -618,6 +652,12 @@ const challengeQueries = {
       await client.query(
         'INSERT INTO gift_logs (from_user_id, to_user_id, distance_change) VALUES ($1, $2, $3)',
         [fromUserId, toUserId, distance]
+      );
+
+      // 사용 횟수 증가
+      await client.query(
+        'UPDATE daily_gift_quota SET used_count = used_count + 1 WHERE user_id = $1 AND quota_date = $2',
+        [fromUserId, today]
       );
 
       await client.query('COMMIT');

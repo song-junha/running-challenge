@@ -2350,14 +2350,23 @@ async function openGiftModal() {
     normalContent.classList.add('hidden');
     adminContent.classList.remove('hidden');
 
+    // 각 참가자의 할당량 정보 가져오기
+    const quotaPromises = participants.map(p =>
+      fetch(`/api/challenges/${currentChallenge.id}/gift/check?userId=${p.user_id}`)
+        .then(res => res.json())
+        .then(data => ({ ...p, quota: data.quota || { max_count: 0, used_count: 0 } }))
+    );
+    const participantsWithQuota = await Promise.all(quotaPromises);
+
     const listContainer = document.getElementById('adminGiftList');
-    listContainer.innerHTML = participants.map(p => `
+    listContainer.innerHTML = participantsWithQuota.map(p => `
       <div class="card bg-base-100 shadow-sm border border-base-300">
         <div class="card-body p-4">
           <div class="flex items-center justify-between gap-3">
             <div class="flex-1">
               <p class="font-semibold">${p.user_name}</p>
               <p class="text-xs text-base-content/60">현재 목표: ${p.target_distance}km</p>
+              <p class="text-xs text-primary font-semibold mt-1">오늘 할당량: ${p.quota.used_count}/${p.quota.max_count}회</p>
             </div>
             <div class="flex items-center gap-2">
               <input
@@ -2380,10 +2389,14 @@ async function openGiftModal() {
 
     // 오늘 선물 가능한지 확인
     const checkResponse = await fetch(`/api/challenges/${currentChallenge.id}/gift/check?userId=${currentUser.id}`);
-    const { canGift } = await checkResponse.json();
+    const checkData = await checkResponse.json();
 
-    if (!canGift) {
-      alert('오늘은 이미 선물하셨습니다. 내일 다시 시도해주세요!');
+    if (!checkData.canGift) {
+      if (checkData.reason === '기간 종료') {
+        alert('선물하기 기간이 종료되었습니다. (2025.12.12까지)');
+      } else {
+        alert('오늘 할당된 선물하기 횟수를 모두 사용하셨습니다. 내일 다시 시도해주세요!');
+      }
       return;
     }
 
@@ -2417,8 +2430,8 @@ async function saveGift() {
     return;
   }
 
-  if (!distance || distance <= 0) {
-    alert('선물할 거리를 입력해주세요.');
+  if (!distance || distance < 1 || distance > 50) {
+    alert('선물할 거리는 1-50km 사이로 입력해주세요.');
     return;
   }
 
