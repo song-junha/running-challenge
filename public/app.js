@@ -2048,6 +2048,23 @@ async function initChallenges() {
 async function loadChallengeProgress() {
   if (!currentChallenge) return;
 
+  // 현재 접속자 이름 표시 및 버튼 표시/숨김
+  const userNameElement = document.getElementById('currentUserName');
+  const connectStravaBtn = document.getElementById('connectStravaBtn');
+  const giftBtn = document.getElementById('giftBtn');
+
+  if (currentUser) {
+    // 연동된 사용자: 이름 표시, 연결하기 숨김, 선물하기 표시
+    userNameElement.textContent = `접속자: ${currentUser.name || currentUser.nickname || '알 수 없음'}`;
+    connectStravaBtn.classList.add('hidden');
+    giftBtn.classList.remove('hidden');
+  } else {
+    // 미연동 사용자: 로그인 필요 메시지, 연결하기 표시, 선물하기 숨김
+    userNameElement.textContent = '로그인이 필요합니다';
+    connectStravaBtn.classList.remove('hidden');
+    giftBtn.classList.add('hidden');
+  }
+
   const container = document.getElementById('challengeParticipants');
   container.innerHTML = '<div class="flex justify-center py-8"><span class="loading loading-dots loading-lg text-primary"></span></div>';
 
@@ -2299,24 +2316,39 @@ async function saveJoinChallenge() {
 
 // 선물하기 모달 열기
 async function openGiftModal() {
-  if (!currentUser || !currentChallenge) {
+  if (!currentUser) {
+    alert('Strava 연동 후 사용할 수 있습니다.');
+    return;
+  }
+
+  if (!currentChallenge) {
     alert('챌린지 정보가 없습니다.');
     return;
+  }
+
+  const isAdmin = currentUser.id === 1; // 송준하 (user_id = 1)
+
+  // 참가자 목록 먼저 불러오기
+  const response = await fetch(`/api/challenges/${currentChallenge.id}/progress`);
+  const participants = await response.json();
+
+  // 일반 사용자는 참가자인지 확인
+  if (!isAdmin) {
+    const isParticipant = participants.some(p => p.user_id === currentUser.id);
+    if (!isParticipant) {
+      alert('맞짱 챌린지에 먼저 참가해주세요!');
+      return;
+    }
   }
 
   const modal = document.getElementById('giftModal');
   const normalContent = document.getElementById('normalGiftContent');
   const adminContent = document.getElementById('adminGiftContent');
-  const isAdmin = currentUser.id === 1; // 송준하 (user_id = 1)
 
   if (isAdmin) {
     // 관리자 모드
     normalContent.classList.add('hidden');
     adminContent.classList.remove('hidden');
-
-    // 참가자 목록 불러오기
-    const response = await fetch(`/api/challenges/${currentChallenge.id}/progress`);
-    const participants = await response.json();
 
     const listContainer = document.getElementById('adminGiftList');
     listContainer.innerHTML = participants.map(p => `
@@ -2354,10 +2386,6 @@ async function openGiftModal() {
       alert('오늘은 이미 선물하셨습니다. 내일 다시 시도해주세요!');
       return;
     }
-
-    // 참가자 목록 불러오기 (자신과 송준하 제외)
-    const response = await fetch(`/api/challenges/${currentChallenge.id}/progress`);
-    const participants = await response.json();
 
     const recipientSelect = document.getElementById('giftRecipient');
     recipientSelect.innerHTML = '<option value="">선택하세요</option>' +

@@ -146,6 +146,7 @@
           <div class="flex items-center justify-between">
             <div>
               <h1 class="card-title text-2xl font-bold text-base-content">🥊 스시101 맞짱</h1>
+              <p class="text-xs text-base-content/50 mb-1" id="currentUserName">접속 중...</p>
               <p class="text-sm text-base-content/70">참여기간: 2025.11.07 ~ 2025.12.13</p>
             </div>
             <div id="challengeDDay" class="text-right">
@@ -154,7 +155,13 @@
           </div>
           <div class="flex gap-2 mt-3">
             <button id="joinChallengeBtn" class="btn btn-primary btn-sm" onclick="openJoinModal()">참여</button>
-            <button id="giftBtn" class="btn btn-error btn-sm gap-1" onclick="openGiftModal()">
+            <button id="connectStravaBtn" class="btn btn-warning btn-sm gap-1" onclick="window.location.href='/auth/strava'">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169"/>
+              </svg>
+              연결하기
+            </button>
+            <button id="giftBtn" class="btn btn-error btn-sm gap-1 hidden" onclick="openGiftModal()">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
               </svg>
