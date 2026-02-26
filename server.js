@@ -682,9 +682,9 @@ app.get('/api/challenges/:id/user/:userId/activities', async (req, res) => {
     // 사용자 활동 조회
     const activities = await activityQueries.getUserActivities(userId);
 
-    // 챌린지 기간 내 활동만 필터링
-    const startDate = new Date(challenge.start_date);
-    const endDate = new Date(challenge.end_date + 'T23:59:59');
+    // 챌린지 기간 내 활동만 필터링 (챌린지 날짜는 KST 기준, Strava는 UTC 저장)
+    const startDate = new Date(challenge.start_date + 'T00:00:00+09:00');
+    const endDate = new Date(challenge.end_date + 'T23:59:59+09:00');
 
     const filteredActivities = activities.filter(activity => {
       const activityDate = new Date(activity.start_date);

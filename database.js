@@ -558,6 +558,10 @@ const challengeQueries = {
     `, [challenge_id]);
 
     // 각 참가자별 달성 거리 계산
+    // Strava는 UTC 기준으로 저장하므로, 챌린지 날짜(KST)를 UTC로 변환
+    const startUTC = new Date(challenge.start_date + 'T00:00:00+09:00').toISOString();
+    const endUTC = new Date(challenge.end_date + 'T23:59:59+09:00').toISOString();
+
     for (const participant of participants) {
       const stats = await getQuery(`
         SELECT
@@ -568,7 +572,7 @@ const challengeQueries = {
           AND start_date >= $2
           AND start_date <= $3
           AND type = 'Run'
-      `, [participant.user_id, challenge.start_date, challenge.end_date + 'T23:59:59']);
+      `, [participant.user_id, startUTC, endUTC]);
 
       participant.achieved_distance = stats?.achieved_distance || 0;
       participant.activity_count = stats?.activity_count || 0;
