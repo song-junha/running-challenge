@@ -2015,27 +2015,27 @@ let currentChallenge = null; // 현재 활성 챌린지
 // 챌린지 초기화
 async function initChallenges() {
   try {
-    // "스시101 맞짱" 챌린지가 있는지 확인
     const response = await fetch('/api/challenges');
     const challenges = await response.json();
 
-    // 챌린지가 없으면 생성
-    if (challenges.length === 0) {
+    // 2026년 2~3월 챌린지 찾기
+    const targetChallenge = challenges.find(c => c.start_date === '2026-02-25');
+
+    if (!targetChallenge) {
       const createResponse = await fetch('/api/challenges', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: '스시101 맞짱',
-          start_date: '2025-11-07',
-          end_date: '2025-12-06'
+          name: '명륜샤부 맞짱',
+          start_date: '2026-02-25',
+          end_date: '2026-03-13'
         })
       });
 
       const result = await createResponse.json();
-      currentChallenge = { id: result.id, name: '스시101 맞짱', start_date: '2025-11-07', end_date: '2025-12-06' };
+      currentChallenge = { id: result.id, name: '명륜샤부 맞짱', start_date: '2026-02-25', end_date: '2026-03-13' };
     } else {
-      // 가장 최근 챌린지 사용
-      currentChallenge = challenges[0];
+      currentChallenge = targetChallenge;
     }
 
     loadChallengeProgress();
@@ -2054,16 +2054,15 @@ async function loadChallengeProgress() {
   const giftBtn = document.getElementById('giftBtn');
 
   if (currentUser) {
-    // 연동된 사용자: 이름 표시, 연결하기 숨김, 선물하기 표시
+    // 연동된 사용자: 이름 표시, 연결하기 숨김
     userNameElement.textContent = `접속자: ${currentUser.name || currentUser.nickname || '알 수 없음'}`;
     connectStravaBtn.classList.add('hidden');
-    giftBtn.classList.remove('hidden');
   } else {
-    // 미연동 사용자: 로그인 필요 메시지, 연결하기 표시, 선물하기 숨김
+    // 미연동 사용자: 로그인 필요 메시지, 연결하기 표시
     userNameElement.textContent = '로그인이 필요합니다';
     connectStravaBtn.classList.remove('hidden');
-    giftBtn.classList.add('hidden');
   }
+  giftBtn.classList.add('hidden');
 
   const container = document.getElementById('challengeParticipants');
   container.innerHTML = '<div class="flex justify-center py-8"><span class="loading loading-dots loading-lg text-primary"></span></div>';
